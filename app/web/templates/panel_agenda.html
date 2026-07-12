@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block titulo %}Agenda — {{ tenant.nombre }}{% endblock %}
+{% block contenido %}
+<header class="panel-cabecera">
+  <h1>Agenda · {{ tenant.nombre }}</h1>
+  <form method="post" action="/panel/logout"><button type="submit" class="secundario">Salir</button></form>
+</header>
+
+<section class="panel-herramientas" aria-label="Herramientas">
+  <form method="post" action="/panel/contaminacion">
+    <button type="submit" class="{{ 'peligro' if tenant.flag_contaminacion else 'secundario' }}">
+      Escenario NO₂: {{ 'ACTIVO (descuento 10 %)' if tenant.flag_contaminacion else 'inactivo' }}
+    </button>
+  </form>
+  <a class="secundario" href="/panel/qr">Descargar QR de reservas</a>
+</section>
+
+<section aria-labelledby="titulo-asistida">
+  <h2 id="titulo-asistida">Reserva telefónica asistida</h2>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/panel/cotizar" class="fila">
+    <div class="campo"><label for="origen">Origen</label>
+      <input type="text" id="origen" name="origen" required></div>
+    <div class="campo"><label for="destino">Destino</label>
+      <input type="text" id="destino" name="destino" required></div>
+    <div class="campo"><label for="fecha_hora">Recogida</label>
+      <input type="datetime-local" id="fecha_hora" name="fecha_hora" required></div>
+    <div class="campo"><label for="con_peaje">Peaje</label>
+      <select id="con_peaje" name="con_peaje">
+        <option value="">Preguntar si procede</option>
+        <option value="si">Con peaje</option>
+        <option value="no">Sin peaje</option>
+      </select></div>
+    <button type="submit" class="principal">Calcular precio</button>
+  </form>
+
+  {% if oferta %}
+  <div class="oferta-asistida">
+    <p><strong>Precio cerrado: {{ oferta.precio }} €</strong> (IVA incluido) ·
+       {{ oferta.origen_texto }} → {{ oferta.destino_texto }} ·
+       {{ oferta.fecha_hora_recogida.strftime('%d/%m %H:%M') }}</p>
+    <form method="post" action="/panel/reservas" class="fila">
+      <input type="hidden" name="cotizacion_id" value="{{ oferta.id }}">
+      <div class="campo"><label for="nombre">Nombre del cliente</label>
+        <input type="text" id="nombre" name="nombre" required></div>
+      <div class="campo"><label for="telefono">Teléfono</label>
+        <input type="tel" id="telefono" name="telefono" required></div>
+      <div class="campo"><label for="email">Email (opcional)</label>
+        <input type="email" id="email" name="email"></div>
+      <button type="submit" class="principal">Confirmar reserva</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+
+<section aria-labelledby="titulo-reservas">
+  <h2 id="titulo-reservas">Reservas</h2>
+  {% if not reservas %}<p>No hay reservas todavía.</p>{% endif %}
+  <ul class="lista-reservas">
+    {% for r in reservas %}
+    <li class="reserva estado-{{ r.estado }}">
+      <div>
+        <strong>{{ r.cotizacion.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong>
+        · {{ r.cotizacion.origen_texto }} → {{ r.cotizacion.destino_texto }}<br>
+        {{ r.cliente.nombre }} · <a href="tel:{{ r.cliente.telefono }}">{{ r.cliente.telefono }}</a>
+        · {{ r.precio_cerrado }} € · <em>{{ r.estado }}</em> ({{ r.canal }})
+        {% if r.justificante %}
+        · <a href="/panel/reservas/{{ r.id }}/justificante">Justificante
+          {{ r.justificante.serie }}-{{ '%06d' % r.justificante.numero }}</a>
+        {% endif %}
+      </div>
+      {% if r.estado in ('aceptada', 'recordada') %}
+      <div class="acciones">
+        <form method="post" action="/panel/reservas/{{ r.id }}/estado">
+          <input type="hidden" name="estado" value="completada">
+          <button type="submit" class="secundario">Completada</button>
+        </form>
+        <form method="post" action="/panel/reservas/{{ r.id }}/estado">
+          <input type="hidden" name="estado" value="cancelada">
+          <button type="submit" class="peligro">Cancelar</button>
+        </form>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

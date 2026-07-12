@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}Tu precio cerrado — {{ tenant.nombre }}{% endblock %}
+{% block contenido %}
+<h1>Precio cerrado: {{ cot.precio }} € <span class="iva">(IVA incluido)</span></h1>
+
+<dl class="resumen">
+  <dt>Origen</dt><dd>{{ cot.origen_texto }}</dd>
+  <dt>Destino</dt><dd>{{ cot.destino_texto }}</dd>
+  <dt>Recogida</dt><dd>{{ cot.fecha_hora_recogida.strftime('%d/%m/%Y') }} a las {{ cot.fecha_hora_recogida.strftime('%H:%M') }}</dd>
+  <dt>Distancia estimada</dt><dd>{{ cot.dist_km }} km</dd>
+</dl>
+
+{% if cot.descuento_contaminacion %}
+<p class="badge-verde">Incluye descuento del 10 % por episodio de contaminación.</p>
+{% endif %}
+{% if cot.con_peaje %}
+<p class="badge">Incluye peaje aceptado por el cliente ({{ cot.importe_peaje }} €).</p>
+{% endif %}
+
+<div class="condiciones">
+  <h2>Condiciones</h2>
+  <p>Precio máximo calculado con las tarifas oficiales del taxi de Madrid
+  (T1/T2, BOCM 2026) y las instrucciones municipales de precio cerrado.
+  Pagarás el importe menor entre este precio y el que marque el taxímetro.
+  Espera de cortesía de 5 minutos en el punto de recogida. Itinerario directo,
+  sin paradas intermedias. El pago se realiza a bordo (efectivo o tarjeta).
+  Recibirás el justificante antes de iniciar el viaje.</p>
+  <p class="ayuda">Esta oferta caduca a los 15 minutos.</p>
+</div>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" action="/t/{{ tenant.slug }}/reservar" novalidate>
+  <input type="hidden" name="cotizacion_id" value="{{ cot.id }}">
+  <div class="campo">
+    <label for="nombre">Tu nombre</label>
+    <input type="text" id="nombre" name="nombre" required minlength="2" autocomplete="name">
+  </div>
+  <div class="campo">
+    <label for="telefono">Teléfono</label>
+    <input type="tel" id="telefono" name="telefono" required minlength="9" autocomplete="tel">
+  </div>
+  <div class="campo">
+    <label for="email">Email <span class="ayuda-inline">(recomendado: te enviamos el justificante)</span></label>
+    <input type="email" id="email" name="email" autocomplete="email">
+  </div>
+  <div class="visualmente-oculto" aria-hidden="true">
+    <label for="website">No rellenes este campo</label>
+    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+  </div>
+  <button type="submit" class="principal">Aceptar reserva</button>
+  <a class="secundario" href="/t/{{ tenant.slug }}">Modificar</a>
+</form>
+{% endblock %}

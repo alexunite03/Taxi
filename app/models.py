@@ -1,0 +1,209 @@
+"""Modelo de datos v2 (plan §10), multi-tenant.
+
+Tipos portables entre PostgreSQL (producción) y SQLite (desarrollo/tests).
+En producción se añade Row Level Security por tenant_id (migración SQL aparte).
+
+Desviación documentada respecto al plan: `cotizaciones.calculo_payload`
+guarda el desglose del cálculo desde la cotización, y se copia a
+`calculos_precio` al aceptar, para garantizar que el justificante refleja
+exactamente el cálculo ofertado (sin recomputar).
+"""
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    Uuid,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .db import Base
+
+
+def ahora() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    slug: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    nombre: Mapped[str] = mapped_column(String(120))
+    nif: Mapped[str] = mapped_column(String(15))
+    num_licencia: Mapped[str] = mapped_column(String(20))
+    matricula: Mapped[str] = mapped_column(String(15), default="")
+
+    email: Mapped[str] = mapped_column(String(120), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+
+    serie_justificante: Mapped[str] = mapped_column(String(10), default="A")
+    contador_justificante: Mapped[int] = mapped_column(Integer, default=0)
+
+    antelacion_min: Mapped[int] = mapped_column(Integer, default=30)  # minutos
+    antelacion_max_dias: Mapped[int] = mapped_column(Integer, default=30)
+
+    sms_activado: Mapped[bool] = mapped_column(Boolean, default=False)
+    flag_contaminacion: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    fecha_alta: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    reservas: Mapped[list["Reserva"]] = relationship(back_populates="tenant")
+
+
+class ClienteFinal(Base):
+    __tablename__ = "clientes_finales"
+    __table_args__ = (UniqueConstraint("tenant_id", "telefono"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    telefono: Mapped[str] = mapped_column(String(20))
+    email: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    nombre: Mapped[str] = mapped_column(String(120))
+    consentimiento_rgpd: Mapped[bool] = mapped_column(Boolean, default=True)
+    fecha_consentimiento: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=ahora
+    )
+
+
+class Cotizacion(Base):
+    """Oferta previa; caduca a los 15 minutos sin aceptar."""
+
+    __tablename__ = "cotizaciones"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+
+    origen_texto: Mapped[str] = mapped_column(String(255))
+    origen_lat: Mapped[float]
+    origen_lng: Mapped[float]
+    destino_texto: Mapped[str] = mapped_column(String(255))
+    destino_lat: Mapped[float]
+    destino_lng: Mapped[float]
+
+    fecha_hora_recogida: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    con_peaje: Mapped[bool] = mapped_column(Boolean, default=False)
+    importe_peaje: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+
+    dist_km: Mapped[float] = mapped_column(Numeric(7, 2))
+    precio: Mapped[float] = mapped_column(Numeric(7, 2))
+    descuento_contaminacion: Mapped[bool] = mapped_column(Boolean, default=False)
+    calculo_payload: Mapped[dict] = mapped_column(JSON)
+    version_tarifas: Mapped[str] = mapped_column(String(30))
+
+    expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+CANALES = ("web", "telefono_asistida", "telegram")
+ESTADOS_RESERVA = ("aceptada", "recordada", "completada", "cancelada")
+
+
+class Reserva(Base):
+    __tablename__ = "reservas"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clientes_finales.id"))
+    cotizacion_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cotizaciones.id"))
+
+    token_publico: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    canal: Mapped[str] = mapped_column(String(20), default="web")
+
+    precio_cerrado: Mapped[float] = mapped_column(Numeric(7, 2))
+    descuento_contaminacion: Mapped[bool] = mapped_column(Boolean, default=False)
+    estado: Mapped[str] = mapped_column(String(20), default="aceptada")
+
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+    aceptada_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cancelada_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    tenant: Mapped[Tenant] = relationship(back_populates="reservas")
+    cliente: Mapped[ClienteFinal] = relationship()
+    cotizacion: Mapped[Cotizacion] = relationship()
+    justificante: Mapped["Justificante | None"] = relationship(
+        back_populates="reserva", uselist=False
+    )
+
+
+class CalculoPrecio(Base):
+    """Inmutable, uno por cotización aceptada. Es la respuesta a una
+    auditoría del algoritmo."""
+
+    __tablename__ = "calculos_precio"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    reserva_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("reservas.id"), unique=True)
+    version_tarifas: Mapped[str] = mapped_column(String(30))
+    payload: Mapped[dict] = mapped_column(JSON)
+    precio_resultante: Mapped[float] = mapped_column(Numeric(7, 2))
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Justificante(Base):
+    __tablename__ = "justificantes"
+    __table_args__ = (UniqueConstraint("tenant_id", "serie", "numero"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    reserva_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("reservas.id"), unique=True)
+
+    serie: Mapped[str] = mapped_column(String(10))
+    numero: Mapped[int] = mapped_column(Integer)
+    pdf_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    html_path: Mapped[str] = mapped_column(String(255))
+    hash_documento: Mapped[str] = mapped_column(String(64))
+    emitido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    reserva: Mapped[Reserva] = relationship(back_populates="justificante")
+
+
+class Notificacion(Base):
+    __tablename__ = "notificaciones"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    reserva_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("reservas.id"), index=True)
+    canal: Mapped[str] = mapped_column(String(10))  # push | email | sms
+    tipo: Mapped[str] = mapped_column(String(15))  # confirmacion | recordatorio | llegada | cancelacion
+    estado: Mapped[str] = mapped_column(String(15), default="pendiente")
+    coste: Mapped[float] = mapped_column(Numeric(6, 4), default=0)
+    enviada_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class PushSuscripcion(Base):
+    __tablename__ = "push_suscripciones"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clientes_finales.id"))
+    endpoint: Mapped[str] = mapped_column(String(500))
+    claves: Mapped[dict] = mapped_column(JSON)
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class SuscripcionSaas(Base):
+    __tablename__ = "suscripciones_saas"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    proveedor: Mapped[str] = mapped_column(String(15), default="manual")  # gocardless | stripe | manual
+    ref_externa: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    importe: Mapped[float] = mapped_column(Numeric(6, 2))
+    estado: Mapped[str] = mapped_column(String(20), default="activa")
+    proximo_cobro: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

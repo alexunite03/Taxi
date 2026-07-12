@@ -1,0 +1,36 @@
+<article class="justificante">
+  <header>
+    <h2>A.P.C. de Madrid</h2>
+    <p class="serie">Justificante de precontratación · Tique {{ serie }}-{{ '%06d' % numero }}</p>
+  </header>
+
+  <dl>
+    <dt>Licencia</dt><dd>{{ tenant.num_licencia }}</dd>
+    <dt>Titular</dt><dd>{{ tenant.nombre }} · NIF {{ tenant.nif }}</dd>
+    {% if tenant.matricula %}<dt>Matrícula</dt><dd>{{ tenant.matricula }}</dd>{% endif %}
+    <dt>Cliente</dt><dd>{{ cliente.nombre }} · Tel. {{ cliente.telefono }}</dd>
+    <dt>Fecha y hora del recorrido (inicio)</dt>
+    <dd>{{ cotizacion.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</dd>
+    <dt>Origen</dt><dd>{{ cotizacion.origen_texto }}</dd>
+    <dt>Destino</dt><dd>{{ cotizacion.destino_texto }}</dd>
+    <dt>Distancia</dt><dd>{{ cotizacion.dist_km }} km</dd>
+  </dl>
+
+  <p class="precio"><strong>Precio cerrado: {{ reserva.precio_cerrado }} €</strong> (IVA incluido)</p>
+
+  {% if reserva.descuento_contaminacion %}
+  <p>Incluye la reducción del 10 % por episodio de contaminación (protocolo NO₂).</p>
+  {% endif %}
+  {% if cotizacion.con_peaje %}
+  <p>El cliente consintió expresamente la ruta con peaje
+  ({{ cotizacion.importe_peaje }} €), incluido en el importe.</p>
+  {% endif %}
+
+  <p class="condiciones-mini">
+    Precio máximo conforme a las tarifas oficiales vigentes
+    ({{ cotizacion.version_tarifas }}) y a las instrucciones municipales de
+    precio cerrado: el usuario abonará el menor importe entre este precio y el
+    que marque el taxímetro. Espera de cortesía de 5 minutos. Itinerario
+    directo sin paradas intermedias.
+  </p>
+</article>

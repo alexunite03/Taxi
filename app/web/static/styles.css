@@ -1,0 +1,101 @@
+/* Hoja de estilos del MVP — WCAG 2.1 AA desde el inicio:
+   contraste >= 4,5:1, objetivos táctiles >= 44 px, foco visible. */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1.06rem;
+  line-height: 1.55;
+  color: #16202e;           /* sobre blanco: contraste ~13:1 */
+  background: #f5f7fa;
+}
+.contenedor { max-width: 44rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+h1 { font-size: 1.6rem; line-height: 1.25; }
+.sub { color: #45536b; margin-top: -0.5rem; }
+.iva { font-size: 1rem; font-weight: 400; color: #45536b; }
+
+.campo { margin: 1rem 0; }
+label, legend { display: block; font-weight: 600; margin-bottom: .35rem; }
+input, select {
+  width: 100%;
+  min-height: 44px;
+  padding: .55rem .75rem;
+  font-size: 1rem;
+  border: 2px solid #5b6b84;
+  border-radius: .5rem;
+  background: #fff;
+  color: #16202e;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+  outline: 3px solid #0b57d0;
+  outline-offset: 2px;
+}
+.opcion { display: flex; gap: .5rem; align-items: center; font-weight: 400;
+  min-height: 44px; }
+.opcion input { width: 1.4rem; min-height: 1.4rem; }
+
+button, .secundario, .principal {
+  display: inline-block;
+  min-height: 48px;
+  padding: .7rem 1.4rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: .6rem;
+  border: 2px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+.principal { background: #0b3d91; color: #fff; }           /* ~9:1 */
+.principal:hover { background: #0a3376; }
+.secundario { background: #fff; color: #0b3d91; border-color: #0b3d91; }
+.peligro { background: #fff; color: #8f1d1d; border-color: #8f1d1d; }
+
+.error { background: #fbe9e9; border-left: 5px solid #8f1d1d; color: #6c1414;
+  padding: .75rem 1rem; border-radius: .35rem; }
+.aviso { background: #fff7e0; border-left: 5px solid #8a6d00; color: #574400;
+  padding: .75rem 1rem; border-radius: .35rem; }
+.badge-verde { background: #e3f5ec; border-left: 5px solid #0d6e42; color: #0a4f30;
+  padding: .75rem 1rem; border-radius: .35rem; }
+.badge { background: #e8eef8; border-left: 5px solid #0b3d91; color: #0a2f6b;
+  padding: .75rem 1rem; border-radius: .35rem; }
+
+.resumen { display: grid; grid-template-columns: 10rem 1fr; gap: .35rem .75rem; }
+.resumen dt { font-weight: 600; }
+.resumen dd { margin: 0; }
+.condiciones { background: #fff; border: 1px solid #cbd5e1; border-radius: .6rem;
+  padding: 1rem 1.25rem; margin: 1.25rem 0; }
+.condiciones h2 { font-size: 1.1rem; margin-top: 0; }
+.ayuda, .ayuda-inline { color: #45536b; font-size: .92rem; font-weight: 400; }
+.rgpd { font-size: .85rem; color: #45536b; border-top: 1px solid #cbd5e1;
+  margin-top: 2rem; padding-top: 1rem; }
+
+.visualmente-oculto { position: absolute; left: -9999px; width: 1px; height: 1px;
+  overflow: hidden; }
+
+/* Justificante embebido */
+.justificante { background: #fff; border: 1px solid #333; border-radius: .35rem;
+  padding: 1.25rem; margin: 1.5rem 0; }
+.justificante dl { display: grid; grid-template-columns: 1fr; gap: .3rem; }
+@media (min-width: 480px) {
+  .justificante dl { grid-template-columns: 14rem 1fr; }
+}
+.justificante dt { font-weight: 600; }
+.justificante dd { margin: 0; }
+.serie { font-weight: 600; }
+.precio { font-size: 1.2rem; }
+.condiciones-mini { font-size: .85rem; color: #333; }
+
+/* Panel */
+.panel-cabecera { display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; flex-wrap: wrap; }
+.panel-herramientas { display: flex; gap: .75rem; flex-wrap: wrap; margin: 1rem 0; }
+.fila { display: grid; gap: .5rem 1rem; }
+@media (min-width: 640px) { .fila { grid-template-columns: 1fr 1fr; } }
+.oferta-asistida { background: #e8eef8; border-radius: .6rem; padding: 1rem 1.25rem;
+  margin: 1rem 0; }
+.lista-reservas { list-style: none; padding: 0; display: grid; gap: .75rem; }
+.reserva { background: #fff; border: 1px solid #cbd5e1; border-radius: .6rem;
+  padding: 1rem 1.25rem; }
+.reserva.estado-cancelada { opacity: .6; }
+.acciones { display: flex; gap: .5rem; margin-top: .75rem; }

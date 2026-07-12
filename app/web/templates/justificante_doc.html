@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Justificante {{ serie }}-{{ '%06d' % numero }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; color: #111; margin: 2rem; }
+    .justificante { max-width: 42rem; border: 1px solid #333; padding: 1.5rem; }
+    .justificante header h2 { margin: 0 0 .25rem; }
+    .serie { font-weight: 600; }
+    dl { display: grid; grid-template-columns: 14rem 1fr; gap: .35rem .75rem; }
+    dt { font-weight: 600; }
+    dd { margin: 0; }
+    .precio { font-size: 1.25rem; }
+    .condiciones-mini { font-size: .85rem; color: #333; }
+  </style>
+</head>
+<body>
+{% include "justificante.html" %}
+</body>
+</html>

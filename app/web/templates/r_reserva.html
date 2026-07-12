@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Tu reserva{% endblock %}
+{% block contenido %}
+<h1>Tu reserva</h1>
+
+{% if reserva.estado == 'cancelada' %}
+<p class="error" role="alert">Esta reserva está <strong>cancelada</strong>.</p>
+{% elif reserva.estado == 'completada' %}
+<p class="badge-verde">Servicio completado. ¡Gracias!</p>
+{% else %}
+<p class="badge-verde">Reserva confirmada. Guarda este enlace: es tu justificante.</p>
+{% endif %}
+
+{{ justificante_html | safe }}
+
+{% if reserva.estado in ('aceptada', 'recordada') %}
+<form method="post" action="/r/{{ reserva.token_publico }}/cancelar"
+      onsubmit="return confirm('¿Seguro que quieres cancelar la reserva?')">
+  <button type="submit" class="peligro">Cancelar reserva</button>
+</form>
+{% endif %}
+{% endblock %}
