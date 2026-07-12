@@ -26,6 +26,11 @@ del servicio.
   (`python -m app.jobs recordatorios`, para cron). Proveedores conmutables:
   `console` (desarrollo) o `resend`; el envío nunca bloquea la reserva y
   queda registrado en `notificaciones`.
+- **Web Push** (plan §5): el pasajero puede activar avisos en su dispositivo
+  desde la página de la reserva (service worker + VAPID). Recordatorio y
+  cancelación llegan por push además de por email. Claves con
+  `python -m app.jobs generar-vapid`; sin claves, el botón no se ofrece y
+  nada se rompe.
 - **API JSON pública** (`/api/t/{slug}/...`) según el plan §11, con rate
   limit por IP, honeypot y límite de reservas activas por teléfono.
 - **Multi-tenant** por `tenant_id` en PostgreSQL/SQLite (RLS pendiente para
@@ -58,7 +63,7 @@ todo el flujo funciona en local sin API key.
 
 ## Pendiente (fases F2–F3 del plan)
 
-- Web Push (VAPID + service worker); SMS opcional por tenant.
+- SMS opcional por tenant (recordatorio crítico).
 - Row Level Security y despliegue (VPS UE, backups cifrados).
 - HTMX para mejorar el formulario sin recarga; Places Autocomplete.
 - Cobro SEPA (GoCardless), Telegram y caja de texto con LLM (opcionales).

@@ -25,12 +25,23 @@ class SenderEspia:
         self.enviados.append(email)
 
 
+class PushEspia:
+    def __init__(self):
+        self.enviados: list[tuple[dict, object]] = []
+
+    def enviar(self, suscripcion: dict, mensaje) -> None:
+        self.enviados.append((suscripcion, mensaje))
+
+
 @pytest.fixture()
 def espia():
     original = app.state.email_sender
+    original_push = getattr(app.state, "push_sender", None)
     app.state.email_sender = SenderEspia()
+    app.state.push_sender = PushEspia()
     yield app.state.email_sender
     app.state.email_sender = original
+    app.state.push_sender = original_push
 
 
 def reservar(client, email=None, telefono="600111222"):
@@ -86,7 +97,7 @@ def test_recordatorios(client, db, espia):
     espia.enviados.clear()
 
     # Aún lejos de la recogida: no toca
-    assert enviar_recordatorios(db, espia) == 0
+    assert enviar_recordatorios(db, espia, app.state.push_sender) == 0
 
     # Adelantamos la recogida a dentro de 20 minutos
     reserva = db.execute(
@@ -96,12 +107,12 @@ def test_recordatorios(client, db, espia):
     cot.fecha_hora_recogida = datetime.now(TZ_MADRID) + timedelta(minutes=20)
     db.commit()
 
-    assert enviar_recordatorios(db, espia) == 1
+    assert enviar_recordatorios(db, espia, app.state.push_sender) == 1
     assert len(espia.enviados) == 1
     assert "Recordatorio" in espia.enviados[0].asunto
     db.refresh(reserva)
     assert reserva.estado == "recordada"
 
     # Segunda pasada: no duplica
-    assert enviar_recordatorios(db, espia) == 0
+    assert enviar_recordatorios(db, espia, app.state.push_sender) == 0
     assert len(espia.enviados) == 1

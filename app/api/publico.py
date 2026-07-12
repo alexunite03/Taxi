@@ -15,7 +15,12 @@ from app.services.cotizaciones import (
     ErrorCotizacion,
     crear_cotizacion,
 )
-from app.services.notificaciones import notificar_cancelacion, notificar_confirmacion
+from app.config import settings
+from app.services.notificaciones import (
+    notificar_cancelacion,
+    notificar_confirmacion,
+    suscribir_push,
+)
 from app.services.reservas import (
     ErrorReserva,
     aceptar_reserva,
@@ -23,7 +28,13 @@ from app.services.reservas import (
     reserva_por_token,
 )
 
-from .deps import email_sender, parsear_fecha_recogida, proveedores, tenant_por_slug
+from .deps import (
+    email_sender,
+    parsear_fecha_recogida,
+    proveedores,
+    push_sender,
+    tenant_por_slug,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -125,6 +136,7 @@ def cancelar(
     request: Request,
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
+    push=Depends(push_sender),
 ):
     limitar_por_ip(request)
     reserva = reserva_por_token(db, token)
@@ -136,8 +148,38 @@ def cancelar(
     except ErrorReserva as e:
         raise HTTPException(422, str(e))
     if not ya_cancelada:
-        notificar_cancelacion(db, sender, reserva)
+        notificar_cancelacion(db, sender, push, reserva)
     return {"estado": reserva.estado}
+
+
+class PushSuscripcionIn(BaseModel):
+    token: str
+    suscripcion: dict
+
+
+@router.get("/push/clave-publica")
+def clave_publica_vapid():
+    """Clave pública VAPID para `pushManager.subscribe` (vacía en desarrollo
+    con el proveedor console: el navegador no podrá suscribirse, pero la API
+    de alta sigue siendo utilizable en tests)."""
+    return {"clave": settings.vapid_public_key or None}
+
+
+@router.post("/push/suscripcion")
+def alta_push(
+    datos: PushSuscripcionIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    limitar_por_ip(request)
+    reserva = reserva_por_token(db, datos.token)
+    if reserva is None:
+        raise HTTPException(404, "Reserva no encontrada")
+    try:
+        suscribir_push(db, reserva, datos.suscripcion)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"ok": True}
 
 
 def condiciones_texto() -> str:

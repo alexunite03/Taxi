@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = "Reservas <reservas@example.com>"
 
+    # Web Push (plan §5): console (desarrollo) | webpush
+    # Claves con `python -m app.jobs generar-vapid`
+    push_provider: str = "console"
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_email: str = "reservas@example.com"
+
     # Recordatorio previo a la recogida (minutos antes)
     recordatorio_min: int = 30
 

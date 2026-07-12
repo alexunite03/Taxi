@@ -14,9 +14,71 @@
 {{ justificante_html | safe }}
 
 {% if reserva.estado in ('aceptada', 'recordada') %}
+<p id="zona-avisos" hidden>
+  <button type="button" id="activar-avisos" class="secundario">
+    Recibir avisos en este dispositivo
+  </button>
+  <span id="avisos-estado" role="status"></span>
+</p>
+
 <form method="post" action="/r/{{ reserva.token_publico }}/cancelar"
       onsubmit="return confirm('¿Seguro que quieres cancelar la reserva?')">
   <button type="submit" class="peligro">Cancelar reserva</button>
 </form>
+
+<script>
+(function () {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  var zona = document.getElementById('zona-avisos');
+  var boton = document.getElementById('activar-avisos');
+  var estado = document.getElementById('avisos-estado');
+
+  fetch('/api/push/clave-publica')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.clave) return;           // sin claves VAPID no se ofrece
+      zona.hidden = false;
+      boton.addEventListener('click', function () { activar(d.clave); });
+    })
+    .catch(function () {});
+
+  function base64aBytes(b64) {
+    var pad = '='.repeat((4 - (b64.length % 4)) % 4);
+    var crudo = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(crudo, function (c) { return c.charCodeAt(0); });
+  }
+
+  function activar(clave) {
+    boton.disabled = true;
+    navigator.serviceWorker.register('/static/sw.js')
+      .then(function (reg) { return navigator.serviceWorker.ready; })
+      .then(function (reg) {
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: base64aBytes(clave),
+        });
+      })
+      .then(function (sus) {
+        return fetch('/api/push/suscripcion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: '{{ reserva.token_publico }}',
+            suscripcion: sus.toJSON(),
+          }),
+        });
+      })
+      .then(function (r) {
+        estado.textContent = r.ok ? 'Avisos activados en este dispositivo.'
+                                  : 'No se pudieron activar los avisos.';
+        if (r.ok) boton.hidden = true; else boton.disabled = false;
+      })
+      .catch(function () {
+        estado.textContent = 'No se pudieron activar los avisos.';
+        boton.disabled = false;
+      });
+  }
+})();
+</script>
 {% endif %}
 {% endblock %}

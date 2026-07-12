@@ -14,10 +14,16 @@ from app.db import get_db
 from app.models import Justificante, Reserva, Tenant
 from app.security import verify_password
 from app.services.cotizaciones import DecisionPeajeRequerida, ErrorCotizacion, crear_cotizacion
-from app.services.notificaciones import notificar_confirmacion
+from app.services.notificaciones import notificar_cancelacion, notificar_confirmacion
 from app.services.reservas import ErrorReserva, aceptar_reserva
 
-from .deps import email_sender, parsear_fecha_recogida, proveedores, tenant_sesion
+from .deps import (
+    email_sender,
+    parsear_fecha_recogida,
+    proveedores,
+    push_sender,
+    tenant_sesion,
+)
 
 router = APIRouter(prefix="/panel")
 templates = Jinja2Templates(
@@ -145,14 +151,19 @@ def cambiar_estado(
     estado: str = Form(...),
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+    push=Depends(push_sender),
 ):
     if estado not in ("completada", "cancelada", "recordada"):
         raise HTTPException(422, "Estado no válido")
     reserva = db.get(Reserva, reserva_id)
     if reserva is None or reserva.tenant_id != tenant.id:
         raise HTTPException(404, "Reserva no encontrada")
+    avisar = estado == "cancelada" and reserva.estado != "cancelada"
     reserva.estado = estado
     db.commit()
+    if avisar:
+        notificar_cancelacion(db, sender, push, reserva)
     return RedirectResponse("/panel", status_code=303)
 
 

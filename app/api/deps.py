@@ -26,6 +26,10 @@ def email_sender(request: Request):
     return request.app.state.email_sender
 
 
+def push_sender(request: Request):
+    return request.app.state.push_sender
+
+
 def tenant_sesion(request: Request, db: Session = Depends(get_db)) -> Tenant:
     """Tenant autenticado del panel (cookie de sesión)."""
     tenant_id = request.session.get("tenant_id")

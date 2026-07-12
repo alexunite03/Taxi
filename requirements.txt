@@ -7,6 +7,7 @@ httpx>=0.27
 python-multipart>=0.0.9
 itsdangerous>=2.1
 segno>=1.6
+pywebpush>=2.0
 
 # Producción (opcionales en desarrollo):
 # psycopg[binary]>=3.1     # PostgreSQL

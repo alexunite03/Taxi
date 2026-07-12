@@ -28,7 +28,13 @@ from app.services.reservas import (
     reserva_por_token,
 )
 
-from app.api.deps import email_sender, parsear_fecha_recogida, proveedores, tenant_por_slug
+from app.api.deps import (
+    email_sender,
+    parsear_fecha_recogida,
+    proveedores,
+    push_sender,
+    tenant_por_slug,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -141,13 +147,14 @@ def cancelar_web(
     token: str,
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
+    push=Depends(push_sender),
 ):
     limitar_por_ip(request)
     reserva = reserva_por_token(db, token)
     if reserva is not None and reserva.estado != "cancelada":
         try:
             cancelar_reserva(db, reserva)
-            notificar_cancelacion(db, sender, reserva)
+            notificar_cancelacion(db, sender, push, reserva)
         except ErrorReserva:
             pass
     return RedirectResponse(f"/r/{token}", status_code=303)
