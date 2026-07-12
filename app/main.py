@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .api import panel, publico
 from .config import settings
 from .db import init_db
+from .notificaciones import crear_email_sender
 from .routing import crear_proveedores
 from .web import routes as web_routes
 
@@ -23,6 +24,7 @@ def crear_app() -> FastAPI:
     )
 
     app.state.geocoder, app.state.rutas = crear_proveedores()
+    app.state.email_sender = crear_email_sender()
 
     app.mount(
         "/static",

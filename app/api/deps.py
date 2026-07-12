@@ -22,6 +22,10 @@ def proveedores(request: Request) -> tuple[Geocoder, RouteProvider]:
     return request.app.state.geocoder, request.app.state.rutas
 
 
+def email_sender(request: Request):
+    return request.app.state.email_sender
+
+
 def tenant_sesion(request: Request, db: Session = Depends(get_db)) -> Tenant:
     """Tenant autenticado del panel (cookie de sesión)."""
     tenant_id = request.session.get("tenant_id")

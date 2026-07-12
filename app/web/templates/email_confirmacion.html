@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<body style="font-family: Arial, sans-serif; color: #16202e; max-width: 36rem; margin: 0 auto;">
+  <h1 style="font-size: 1.3rem;">Reserva confirmada</h1>
+  <p>Hola {{ cliente.nombre }}: tu taxi está reservado con precio cerrado.</p>
+
+  <table role="presentation" style="border-collapse: collapse; width: 100%;">
+    <tr><td style="padding: .25rem 0; font-weight: bold;">Recogida</td>
+        <td>{{ cotizacion.fecha_hora_recogida.strftime('%d/%m/%Y a las %H:%M') }}</td></tr>
+    <tr><td style="padding: .25rem 0; font-weight: bold;">Origen</td>
+        <td>{{ cotizacion.origen_texto }}</td></tr>
+    <tr><td style="padding: .25rem 0; font-weight: bold;">Destino</td>
+        <td>{{ cotizacion.destino_texto }}</td></tr>
+    <tr><td style="padding: .25rem 0; font-weight: bold;">Precio cerrado</td>
+        <td><strong>{{ reserva.precio_cerrado }} €</strong> (IVA incluido)</td></tr>
+  </table>
+
+  <p>Adjuntamos tu justificante
+  {% if reserva.justificante %}({{ reserva.justificante.serie }}-{{ '%06d' % reserva.justificante.numero }}){% endif %}.
+  También puedes consultarlo o cancelar la reserva en cualquier momento desde este enlace:</p>
+
+  <p><a href="{{ enlace }}" style="display: inline-block; background: #0b3d91; color: #ffffff;
+     padding: .7rem 1.4rem; border-radius: .5rem; text-decoration: none;">Ver mi reserva</a></p>
+
+  <p style="font-size: .85rem; color: #45536b;">
+    Pagarás a bordo el importe menor entre el precio cerrado y el que marque el
+    taxímetro. Espera de cortesía de 5 minutos en el punto de recogida.<br>
+    {{ tenant.nombre }} · Licencia {{ tenant.num_licencia }} · A.P.C. de Madrid
+  </p>
+</body>
+</html>

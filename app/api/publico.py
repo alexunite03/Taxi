@@ -15,6 +15,7 @@ from app.services.cotizaciones import (
     ErrorCotizacion,
     crear_cotizacion,
 )
+from app.services.notificaciones import notificar_cancelacion, notificar_confirmacion
 from app.services.reservas import (
     ErrorReserva,
     aceptar_reserva,
@@ -22,7 +23,7 @@ from app.services.reservas import (
     reserva_por_token,
 )
 
-from .deps import parsear_fecha_recogida, proveedores, tenant_por_slug
+from .deps import email_sender, parsear_fecha_recogida, proveedores, tenant_por_slug
 
 router = APIRouter(prefix="/api")
 
@@ -97,6 +98,7 @@ def reservar(
     request: Request,
     tenant: Tenant = Depends(tenant_por_slug),
     db: Session = Depends(get_db),
+    sender=Depends(email_sender),
 ):
     limitar_por_ip(request)
     comprobar_honeypot(datos.website)
@@ -106,6 +108,7 @@ def reservar(
         )
     except ErrorReserva as e:
         raise HTTPException(422, str(e))
+    notificar_confirmacion(db, sender, reserva)
     j = reserva.justificante
     return {
         "reserva_token": reserva.token_publico,
@@ -117,15 +120,23 @@ def reservar(
 
 
 @router.post("/reservas/{token}/cancelar")
-def cancelar(token: str, request: Request, db: Session = Depends(get_db)):
+def cancelar(
+    token: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+):
     limitar_por_ip(request)
     reserva = reserva_por_token(db, token)
     if reserva is None:
         raise HTTPException(404, "Reserva no encontrada")
+    ya_cancelada = reserva.estado == "cancelada"
     try:
         cancelar_reserva(db, reserva)
     except ErrorReserva as e:
         raise HTTPException(422, str(e))
+    if not ya_cancelada:
+        notificar_cancelacion(db, sender, reserva)
     return {"estado": reserva.estado}
 
 

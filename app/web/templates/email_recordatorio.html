@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="es">
+<body style="font-family: Arial, sans-serif; color: #16202e; max-width: 36rem; margin: 0 auto;">
+  <h1 style="font-size: 1.3rem;">Tu taxi llega pronto</h1>
+  <p>Hola {{ cliente.nombre }}: te recordamos tu reserva de hoy.</p>
+  <p style="font-size: 1.1rem;">
+    <strong>{{ cotizacion.fecha_hora_recogida.strftime('%H:%M') }}</strong> ·
+    {{ cotizacion.origen_texto }} → {{ cotizacion.destino_texto }} ·
+    <strong>{{ reserva.precio_cerrado }} €</strong> (IVA incluido)
+  </p>
+  <p><a href="{{ enlace }}" style="display: inline-block; background: #0b3d91; color: #ffffff;
+     padding: .7rem 1.4rem; border-radius: .5rem; text-decoration: none;">Ver mi reserva</a></p>
+  <p style="font-size: .85rem; color: #45536b;">
+    {{ tenant.nombre }} · Licencia {{ tenant.num_licencia }} · A.P.C. de Madrid
+  </p>
+</body>
+</html>

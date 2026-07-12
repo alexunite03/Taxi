@@ -20,6 +20,7 @@ from app.services.cotizaciones import (
     ErrorCotizacion,
     crear_cotizacion,
 )
+from app.services.notificaciones import notificar_cancelacion, notificar_confirmacion
 from app.services.reservas import (
     ErrorReserva,
     aceptar_reserva,
@@ -27,7 +28,7 @@ from app.services.reservas import (
     reserva_por_token,
 )
 
-from app.api.deps import parsear_fecha_recogida, proveedores, tenant_por_slug
+from app.api.deps import email_sender, parsear_fecha_recogida, proveedores, tenant_por_slug
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -103,6 +104,7 @@ def reservar_web(
     website: str | None = Form(None),
     tenant: Tenant = Depends(tenant_por_slug),
     db: Session = Depends(get_db),
+    sender=Depends(email_sender),
 ):
     limitar_por_ip(request)
     comprobar_honeypot(website)
@@ -115,6 +117,7 @@ def reservar_web(
             request, "t_form.html",
             {"tenant": tenant, "valores": {}, "error": str(e)},
         )
+    notificar_confirmacion(db, sender, reserva)
     return RedirectResponse(f"/r/{reserva.token_publico}", status_code=303)
 
 
@@ -133,12 +136,18 @@ def ver_reserva(request: Request, token: str, db: Session = Depends(get_db)):
 
 
 @router.post("/r/{token}/cancelar")
-def cancelar_web(request: Request, token: str, db: Session = Depends(get_db)):
+def cancelar_web(
+    request: Request,
+    token: str,
+    db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+):
     limitar_por_ip(request)
     reserva = reserva_por_token(db, token)
-    if reserva is not None:
+    if reserva is not None and reserva.estado != "cancelada":
         try:
             cancelar_reserva(db, reserva)
+            notificar_cancelacion(db, sender, reserva)
         except ErrorReserva:
             pass
     return RedirectResponse(f"/r/{token}", status_code=303)

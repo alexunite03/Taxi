@@ -21,6 +21,11 @@ del servicio.
 - **Panel del taxista** (`/panel`): agenda, reserva telefónica asistida
   (mismo motor), flag manual de escenario NO₂, QR del enlace de reserva,
   cambio de estado y descarga de justificantes.
+- **Notificaciones por email** (plan §5): confirmación con el justificante
+  adjunto, aviso de cancelación y recordatorio previo a la recogida
+  (`python -m app.jobs recordatorios`, para cron). Proveedores conmutables:
+  `console` (desarrollo) o `resend`; el envío nunca bloquea la reserva y
+  queda registrado en `notificaciones`.
 - **API JSON pública** (`/api/t/{slug}/...`) según el plan §11, con rate
   limit por IP, honeypot y límite de reservas activas por teléfono.
 - **Multi-tenant** por `tenant_id` en PostgreSQL/SQLite (RLS pendiente para
@@ -53,7 +58,7 @@ todo el flujo funciona en local sin API key.
 
 ## Pendiente (fases F2–F3 del plan)
 
-- Email transaccional (confirmación + PDF) y Web Push; SMS opcional por tenant.
+- Web Push (VAPID + service worker); SMS opcional por tenant.
 - Row Level Security y despliegue (VPS UE, backups cifrados).
 - HTMX para mejorar el formulario sin recarga; Places Autocomplete.
 - Cobro SEPA (GoCardless), Telegram y caja de texto con LLM (opcionales).

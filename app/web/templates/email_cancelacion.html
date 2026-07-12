@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="es">
+<body style="font-family: Arial, sans-serif; color: #16202e; max-width: 36rem; margin: 0 auto;">
+  <h1 style="font-size: 1.3rem;">Reserva cancelada</h1>
+  <p>Hola {{ cliente.nombre }}: tu reserva ha quedado cancelada.</p>
+  <p>
+    {{ cotizacion.fecha_hora_recogida.strftime('%d/%m/%Y a las %H:%M') }} ·
+    {{ cotizacion.origen_texto }} → {{ cotizacion.destino_texto }}
+  </p>
+  <p>Si no la cancelaste tú o quieres volver a reservar, pide un precio nuevo
+  desde la web de reservas.</p>
+  <p style="font-size: .85rem; color: #45536b;">
+    {{ tenant.nombre }} · Licencia {{ tenant.num_licencia }} · A.P.C. de Madrid
+  </p>
+</body>
+</html>

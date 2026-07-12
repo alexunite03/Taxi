@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     # Caducidad de la cotización (plan §3): 15 minutos
     cotizacion_ttl_min: int = 15
 
+    # Email transaccional (plan §5): console (desarrollo) | resend
+    email_provider: str = "console"
+    resend_api_key: str = ""
+    email_from: str = "Reservas <reservas@example.com>"
+
+    # Recordatorio previo a la recogida (minutos antes)
+    recordatorio_min: int = 30
+
     # Antifraude básico (plan §11); en producción, Redis
     rate_limit_por_ip_hora: int = 30
     max_reservas_activas_por_telefono: int = 3

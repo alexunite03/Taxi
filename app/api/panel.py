@@ -14,9 +14,10 @@ from app.db import get_db
 from app.models import Justificante, Reserva, Tenant
 from app.security import verify_password
 from app.services.cotizaciones import DecisionPeajeRequerida, ErrorCotizacion, crear_cotizacion
+from app.services.notificaciones import notificar_confirmacion
 from app.services.reservas import ErrorReserva, aceptar_reserva
 
-from .deps import parsear_fecha_recogida, proveedores, tenant_sesion
+from .deps import email_sender, parsear_fecha_recogida, proveedores, tenant_sesion
 
 router = APIRouter(prefix="/panel")
 templates = Jinja2Templates(
@@ -125,14 +126,16 @@ def reservar_asistida(
     email: str | None = Form(None),
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
+    sender=Depends(email_sender),
 ):
     try:
-        aceptar_reserva(
+        reserva = aceptar_reserva(
             db, tenant, cotizacion_id, nombre.strip(), telefono.strip(),
             email or None, canal="telefono_asistida",
         )
     except ErrorReserva as e:
         raise HTTPException(422, str(e))
+    notificar_confirmacion(db, sender, reserva)
     return RedirectResponse("/panel", status_code=303)
 
 
