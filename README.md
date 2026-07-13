@@ -35,6 +35,13 @@ del servicio.
   limit por IP, honeypot y límite de reservas activas por teléfono.
 - **Multi-tenant** por `tenant_id` en PostgreSQL/SQLite (RLS pendiente para
   producción).
+- **Textos legales** (checklist §17): aviso legal y política de cookies del
+  sitio (`/aviso-legal`, `/cookies`; sin banner: no hay cookies de terceros),
+  política de privacidad por taxista (`/t/{slug}/privacidad`, enlazada desde
+  la línea RGPD del formulario) y plantilla del contrato de encargo art. 28
+  RGPD (`docs/contrato-encargo-tratamiento.md`). Los datos del proveedor se
+  configuran con `TAXI_PROVEEDOR_*`. **Borradores pendientes de revisión
+  letrada antes del lanzamiento.**
 
 ## Arranque rápido
 
@@ -64,6 +71,7 @@ todo el flujo funciona en local sin API key.
 ## Pendiente (fases F2–F3 del plan)
 
 - SMS opcional por tenant (recordatorio crítico).
+- Revisión letrada de los textos legales y del contrato de encargo.
 - Row Level Security y despliegue (VPS UE, backups cifrados).
 - HTMX para mejorar el formulario sin recarga; Places Autocomplete.
 - Cobro SEPA (GoCardless), Telegram y caja de texto con LLM (opcionales).

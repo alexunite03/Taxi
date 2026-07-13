@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titulo %}Política de cookies{% endblock %}
+{% block contenido %}
+<h1>Política de cookies</h1>
+
+<p>Este sitio <strong>no utiliza cookies de analítica, publicidad ni de
+terceros</strong>. Por eso no verás ningún banner de consentimiento.</p>
+
+<h2>Cookies que sí usamos</h2>
+<dl class="resumen">
+  <dt>session</dt>
+  <dd>Cookie técnica de sesión, solo en el panel del taxista, para mantener
+  la sesión iniciada. Caduca al cerrar la sesión. Está exenta de
+  consentimiento (art. 22.2 LSSI) por ser estrictamente necesaria para
+  prestar el servicio solicitado.</dd>
+</dl>
+
+<p>La página pública de reserva no instala ninguna cookie. Si el pasajero
+activa los avisos push, el navegador guarda la suscripción en el propio
+dispositivo; puede revocarla en cualquier momento desde los ajustes de
+notificaciones del navegador.</p>
+
+<p class="ayuda">Titular del sitio: {{ proveedor.nombre }} · {{ proveedor.nif }}
+· <a href="/aviso-legal">Aviso legal</a></p>
+{% endblock %}

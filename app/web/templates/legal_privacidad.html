@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block titulo %}Política de privacidad — {{ tenant.nombre }}{% endblock %}
+{% block contenido %}
+<h1>Política de privacidad</h1>
+<p class="sub">Servicio de reserva de {{ tenant.nombre }} · Licencia
+{{ tenant.num_licencia }} · A.P.C. de Madrid</p>
+
+<h2>Responsable del tratamiento</h2>
+<dl class="resumen">
+  <dt>Responsable</dt><dd>{{ tenant.nombre }}</dd>
+  <dt>NIF</dt><dd>{{ tenant.nif }}</dd>
+  <dt>Licencia</dt><dd>{{ tenant.num_licencia }} del Área de Prestación Conjunta de Madrid</dd>
+  <dt>Contacto</dt><dd>{{ tenant.email }}</dd>
+</dl>
+
+<h2>Qué datos tratamos y para qué</h2>
+<p>Tratamos los datos que nos das al reservar (nombre, teléfono, email si lo
+indicas, origen, destino y hora de recogida) para <strong>gestionar tu
+reserva</strong>: calcular el precio cerrado, emitir el justificante que
+exige la ordenanza del taxi, prestarte el servicio y enviarte la
+confirmación y el recordatorio.</p>
+
+<h2>Base jurídica</h2>
+<p>La ejecución del contrato de transporte que solicitas (art. 6.1.b RGPD).
+La emisión y conservación del justificante responde además a una obligación
+legal (art. 6.1.c RGPD, ordenanza reguladora del taxi y normativa
+tributaria).</p>
+
+<h2>Cuánto tiempo los conservamos</h2>
+<p>Durante los plazos legales aplicables: con carácter general,
+<strong>4 años</strong> conforme a la normativa tributaria y de transporte.
+Después se suprimen o anonimizan.</p>
+
+<h2>A quién se comunican</h2>
+<p>No se ceden datos a terceros salvo obligación legal (por ejemplo, a la
+administración competente si lo requiere). Para prestar el servicio se
+utilizan proveedores que actúan como encargados o subencargados del
+tratamiento con contrato conforme al art. 28 RGPD:</p>
+<ul>
+  <li>{{ proveedor.nombre }} — plataforma tecnológica de reservas (hosting en la UE).</li>
+  <li>Proveedores de mapas y cálculo de rutas, de email transaccional y, en su
+  caso, de SMS, declarados en el contrato de encargo.</li>
+</ul>
+
+<h2>Tus derechos</h2>
+<p>Puedes ejercer los derechos de acceso, rectificación, supresión,
+oposición, limitación y portabilidad escribiendo a
+<a href="mailto:{{ tenant.email }}">{{ tenant.email }}</a>. Si consideras
+que el tratamiento no es correcto, puedes reclamar ante la Agencia Española
+de Protección de Datos (<a href="https://www.aepd.es" rel="noopener">aepd.es</a>).</p>
+
+<h2>Procedencia y decisiones automatizadas</h2>
+<p>Solo tratamos los datos que tú nos facilitas. El precio se calcula de
+forma automática con las tarifas oficiales y las instrucciones municipales
+de precio cerrado; es un precio máximo y no implica elaboración de perfiles.</p>
+
+<p class="ayuda"><a href="/t/{{ tenant.slug }}">Volver a la reserva</a> ·
+<a href="/aviso-legal">Aviso legal del sitio</a> ·
+<a href="/cookies">Cookies</a></p>
+{% endblock %}

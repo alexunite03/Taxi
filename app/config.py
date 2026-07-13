@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     # Carpeta donde se archivan los justificantes (PDF/HTML + hash)
     justificantes_dir: Path = BASE_DIR / "var" / "justificantes"
 
+    # Datos del proveedor SaaS para los textos legales (LSSI / RGPD).
+    # Rellenar al constituir la SL (checklist §17 del plan).
+    proveedor_nombre: str = "[RAZÓN SOCIAL DEL PROVEEDOR, S.L.]"
+    proveedor_nif: str = "[NIF]"
+    proveedor_domicilio: str = "[DOMICILIO SOCIAL]"
+    proveedor_email: str = "[EMAIL DE CONTACTO]"
+    proveedor_registro: str = "[DATOS DE INSCRIPCIÓN EN EL REGISTRO MERCANTIL]"
+
     # Crea un tenant de demostración al arrancar (solo desarrollo)
     seed_demo: bool = False
 

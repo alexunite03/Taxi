@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Aviso legal{% endblock %}
+{% block contenido %}
+<h1>Aviso legal</h1>
+
+<p>En cumplimiento de la Ley 34/2002, de 11 de julio, de servicios de la
+sociedad de la información y de comercio electrónico (LSSI), se informa de
+que este sitio web es titularidad de:</p>
+
+<dl class="resumen">
+  <dt>Titular</dt><dd>{{ proveedor.nombre }}</dd>
+  <dt>NIF</dt><dd>{{ proveedor.nif }}</dd>
+  <dt>Domicilio</dt><dd>{{ proveedor.domicilio }}</dd>
+  <dt>Email</dt><dd>{{ proveedor.email }}</dd>
+  <dt>Registro</dt><dd>{{ proveedor.registro }}</dd>
+</dl>
+
+<h2>Objeto</h2>
+<p>Este sitio presta un servicio tecnológico de gestión de reservas de taxi
+con precio cerrado para titulares de licencia del Área de Prestación
+Conjunta de Madrid. El titular del sitio actúa como proveedor de software:
+<strong>no intermedia en el servicio de transporte, no cobra las carreras y
+no emite facturas por ellas</strong>. El contrato de transporte se celebra
+directamente entre el pasajero y el taxista titular de la licencia, que es
+quien responde de la prestación del servicio y del cumplimiento tarifario.</p>
+
+<h2>Condiciones de uso</h2>
+<p>El usuario se compromete a hacer un uso lícito del sitio y a no realizar
+reservas falsas o abusivas. El precio mostrado es un precio máximo calculado
+conforme a las tarifas oficiales vigentes y a las instrucciones municipales
+de precio cerrado: el pasajero abonará el menor importe entre el precio
+pactado y el que marque el taxímetro.</p>
+
+<h2>Propiedad intelectual</h2>
+<p>El software, el diseño y los contenidos de este sitio pertenecen a su
+titular o cuentan con licencia de uso. No se cede ningún derecho sobre ellos
+por el mero uso del servicio.</p>
+
+<h2>Responsabilidad</h2>
+<p>El titular no responde de los daños derivados del uso incorrecto del
+sitio ni de causas de fuerza mayor. Las reclamaciones sobre el servicio de
+transporte deben dirigirse al taxista titular de la licencia identificado en
+el justificante de cada reserva.</p>
+
+<h2>Legislación aplicable</h2>
+<p>Estas condiciones se rigen por la legislación española. Para cualquier
+controversia serán competentes los juzgados y tribunales que correspondan
+conforme a la normativa de consumidores y usuarios.</p>
+
+<p class="ayuda">Consulta también la <a href="/cookies">política de
+cookies</a>. La política de privacidad de cada servicio de reserva está
+disponible en la página de reserva de cada taxista.</p>
+{% endblock %}

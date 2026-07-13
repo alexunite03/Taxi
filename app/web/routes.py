@@ -40,10 +40,45 @@ router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
 
 
+def _proveedor() -> dict:
+    from app.config import settings
+
+    return {
+        "nombre": settings.proveedor_nombre,
+        "nif": settings.proveedor_nif,
+        "domicilio": settings.proveedor_domicilio,
+        "email": settings.proveedor_email,
+        "registro": settings.proveedor_registro,
+    }
+
+
 @router.get("/t/{slug}", response_class=HTMLResponse)
 def formulario(request: Request, tenant: Tenant = Depends(tenant_por_slug)):
     return templates.TemplateResponse(
         request, "t_form.html", {"tenant": tenant, "valores": {}, "error": None}
+    )
+
+
+@router.get("/aviso-legal", response_class=HTMLResponse)
+def aviso_legal(request: Request):
+    return templates.TemplateResponse(
+        request, "legal_aviso.html", {"proveedor": _proveedor()}
+    )
+
+
+@router.get("/cookies", response_class=HTMLResponse)
+def cookies(request: Request):
+    return templates.TemplateResponse(
+        request, "legal_cookies.html", {"proveedor": _proveedor()}
+    )
+
+
+@router.get("/t/{slug}/privacidad", response_class=HTMLResponse)
+def privacidad(request: Request, tenant: Tenant = Depends(tenant_por_slug)):
+    return templates.TemplateResponse(
+        request,
+        "legal_privacidad.html",
+        {"tenant": tenant, "proveedor": _proveedor()},
     )
 
 

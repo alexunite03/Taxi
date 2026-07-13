@@ -99,3 +99,7 @@ button, .secundario, .principal {
   padding: 1rem 1.25rem; }
 .reserva.estado-cancelada { opacity: .6; }
 .acciones { display: flex; gap: .5rem; margin-top: .75rem; }
+
+.pie { max-width: 44rem; margin: 0 auto; padding: 1rem; font-size: .85rem;
+  color: #45536b; border-top: 1px solid #cbd5e1; }
+.pie a { color: #0b3d91; }
