@@ -36,3 +36,9 @@ def test_formulario_enlaza_la_privacidad(client):
 def test_pie_con_enlaces_legales(client):
     r = client.get("/t/demo")
     assert '/aviso-legal' in r.text and '/cookies' in r.text
+
+
+def test_pagina_raiz_no_da_404(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "Acceder al panel" in r.text

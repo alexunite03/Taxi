@@ -40,6 +40,11 @@ router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
 
 
+@router.get("/", response_class=HTMLResponse)
+def inicio(request: Request):
+    return templates.TemplateResponse(request, "inicio.html", {})
+
+
 def _proveedor() -> dict:
     from app.config import settings
 

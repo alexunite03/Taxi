@@ -68,6 +68,38 @@ Tests: `.venv/bin/python -m pytest`
 El proveedor `fake` geocodifica y enruta de forma determinista (sin red):
 todo el flujo funciona en local sin API key.
 
+## Despliegue
+
+**Esto es un servidor Python, no una web estática: Netlify, GitHub Pages o
+similares no pueden ejecutarlo.** Necesita una plataforma que corra procesos:
+
+### Para probar (gratis/barato): Render o Railway
+
+Ambos detectan el `Dockerfile` automáticamente.
+
+1. Entra en [render.com](https://render.com) (o railway.app) con tu cuenta
+   de GitHub.
+2. New → Web Service → elige el repo `alexunite03/taxi`.
+3. Variables de entorno mínimas:
+   - `TAXI_SECRET_KEY` → una cadena larga aleatoria
+   - `TAXI_SEED_DEMO=1` → crea el taxista de prueba (`/t/demo`, panel
+     `demo@example.com` / `demo1234`)
+   - `TAXI_BASE_URL` → la URL que te asigne la plataforma (p. ej.
+     `https://taxi-xxxx.onrender.com`)
+4. Deploy. La raíz `/` muestra la página de inicio; la reserva de prueba
+   está en `/t/demo`.
+
+**Aviso**: con SQLite (por defecto) los datos se borran en cada redeploy en
+estas plataformas. Para el piloto real, añade un PostgreSQL gestionado y pon
+su URL en `TAXI_DATABASE_URL` (formato
+`postgresql+psycopg://usuario:clave@host/db`, añadiendo `psycopg[binary]` a
+requirements).
+
+### Para producción: VPS en la UE (plan §12)
+
+Hetzner + Docker o systemd, PostgreSQL y Redis locales, backups diarios
+cifrados fuera del servidor, y cron para `python -m app.jobs recordatorios`.
+
 ## Pendiente (fases F2–F3 del plan)
 
 - SMS opcional por tenant (recordatorio crítico).
