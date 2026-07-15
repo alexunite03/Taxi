@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titulo %}Registro de taxista{% endblock %}
+{% block contenido %}
+<h1>Registro de taxista</h1>
+<p class="sub">Para titulares de licencia del A.P.C. de Madrid.</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" action="/registro/taxista" novalidate>
+  <div class="campo">
+    <label for="nombre">Nombre y apellidos (titular de la licencia)</label>
+    <input type="text" id="nombre" name="nombre" required minlength="5"
+           autocomplete="name" value="{{ valores.nombre or '' }}">
+  </div>
+  <div class="campo">
+    <label for="nif">NIF</label>
+    <input type="text" id="nif" name="nif" required minlength="9" maxlength="9"
+           value="{{ valores.nif or '' }}">
+  </div>
+  <div class="campo">
+    <label for="num_licencia">Número de licencia</label>
+    <input type="text" id="num_licencia" name="num_licencia" required
+           inputmode="numeric" value="{{ valores.num_licencia or '' }}">
+  </div>
+  <div class="campo">
+    <label for="matricula">Matrícula <span class="ayuda-inline">(opcional)</span></label>
+    <input type="text" id="matricula" name="matricula"
+           value="{{ valores.matricula or '' }}">
+  </div>
+  <div class="campo">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required autocomplete="username"
+           value="{{ valores.email or '' }}">
+  </div>
+  <div class="campo">
+    <label for="password">Contraseña <span class="ayuda-inline">(mínimo 8 caracteres)</span></label>
+    <input type="password" id="password" name="password" required minlength="8"
+           autocomplete="new-password">
+  </div>
+  <button type="submit" class="principal">Crear mi cuenta</button>
+</form>
+
+<p class="rgpd">Tus datos identifican al responsable del servicio en los
+justificantes y textos legales que exige la ordenanza del taxi. Al crear la
+cuenta aceptas las condiciones del <a href="/aviso-legal">aviso legal</a>.</p>
+{% endblock %}

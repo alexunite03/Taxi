@@ -1,18 +1,20 @@
 {% extends "base.html" %}
-{% block titulo %}Panel del taxista{% endblock %}
+{% block titulo %}Entrar — pasajero{% endblock %}
 {% block contenido %}
-<h1>Panel del taxista</h1>
+<h1>Entrar</h1>
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
-<form method="post" action="/panel/login">
+<form method="post" action="/usuario/login">
   <div class="campo">
     <label for="email">Email</label>
     <input type="email" id="email" name="email" required autocomplete="username">
   </div>
   <div class="campo">
     <label for="password">Contraseña</label>
-    <input type="password" id="password" name="password" required autocomplete="current-password">
+    <input type="password" id="password" name="password" required
+           autocomplete="current-password">
   </div>
   <button type="submit" class="principal">Entrar</button>
 </form>
-<p class="ayuda">¿Aún no tienes cuenta? <a href="/registro/taxista">Regístrate como taxista</a>.</p>
+<p class="ayuda">¿No tienes cuenta? <a href="/registro/usuario">Regístrate</a>.
+¿Eres taxista? <a href="/panel/login">Entra al panel</a>.</p>
 {% endblock %}

@@ -207,3 +207,19 @@ class SuscripcionSaas(Base):
     proximo_cobro: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class Usuario(Base):
+    """Cuenta opcional del pasajero: reservar nunca exige registro (plan §3),
+    pero con cuenta puede consultar sus reservas en /mis-reservas.
+    Las reservas se asocian por teléfono, que es la clave natural que ya
+    usa `clientes_finales`."""
+
+    __tablename__ = "usuarios"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    nombre: Mapped[str] = mapped_column(String(120))
+    telefono: Mapped[str] = mapped_column(String(20), index=True)
+    email: Mapped[str] = mapped_column(String(120), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)

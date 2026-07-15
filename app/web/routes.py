@@ -135,8 +135,12 @@ def cotizar_web(
             request, "t_form.html",
             {"tenant": tenant, "valores": valores, "error": str(e)},
         )
+    from app.web.cuentas import usuario_sesion
+
     return templates.TemplateResponse(
-        request, "t_oferta.html", {"tenant": tenant, "cot": cot, "error": None}
+        request,
+        "t_oferta.html",
+        {"tenant": tenant, "cot": cot, "error": None, "usuario": usuario_sesion(request, db)},
     )
 
 

@@ -103,3 +103,12 @@ button, .secundario, .principal {
 .pie { max-width: 44rem; margin: 0 auto; padding: 1rem; font-size: .85rem;
   color: #45536b; border-top: 1px solid #cbd5e1; }
 .pie a { color: #0b3d91; }
+
+/* Registro */
+.tarjetas-registro { display: grid; gap: 1rem; margin: 1.5rem 0; }
+@media (min-width: 560px) { .tarjetas-registro { grid-template-columns: 1fr 1fr; } }
+.tarjeta-registro { background: #fff; border: 1px solid #cbd5e1;
+  border-radius: .6rem; padding: 1.25rem; display: flex; flex-direction: column;
+  gap: .5rem; }
+.tarjeta-registro h2 { margin: 0; font-size: 1.15rem; }
+.tarjeta-registro .principal { margin-top: auto; }

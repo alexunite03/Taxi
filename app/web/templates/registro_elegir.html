@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Crear cuenta{% endblock %}
+{% block contenido %}
+<h1>Crear cuenta</h1>
+<p>¿Cómo vas a usar la plataforma?</p>
+
+<div class="tarjetas-registro">
+  <div class="tarjeta-registro">
+    <h2>Soy pasajero</h2>
+    <p>Guarda tus datos y consulta o cancela tus reservas en cualquier
+    momento. No es obligatorio para reservar.</p>
+    <a class="principal" href="/registro/usuario">Crear cuenta de pasajero</a>
+  </div>
+  <div class="tarjeta-registro">
+    <h2>Soy taxista</h2>
+    <p>Titular de licencia del A.P.C. de Madrid: consigue tu enlace de
+    reservas con precio cerrado, tu QR y tu agenda.</p>
+    <a class="principal" href="/registro/taxista">Crear cuenta de taxista</a>
+  </div>
+</div>
+
+<p class="ayuda">¿Ya tienes cuenta? Entra como
+<a href="/usuario/login">pasajero</a> o como <a href="/panel/login">taxista</a>.</p>
+{% endblock %}

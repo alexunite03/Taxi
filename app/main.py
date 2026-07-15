@@ -11,6 +11,7 @@ from .config import settings
 from .db import init_db
 from .notificaciones import crear_email_sender, crear_push_sender
 from .routing import crear_proveedores
+from .web import cuentas as web_cuentas
 from .web import routes as web_routes
 
 
@@ -34,6 +35,7 @@ def crear_app() -> FastAPI:
     )
     app.include_router(publico.router)
     app.include_router(web_routes.router)
+    app.include_router(web_cuentas.router)
     app.include_router(panel.router)
 
     @app.exception_handler(StarletteHTTPException)

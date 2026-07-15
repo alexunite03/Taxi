@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}Cuenta de pasajero{% endblock %}
+{% block contenido %}
+<h1>Cuenta de pasajero</h1>
+<p class="sub">Opcional: puedes reservar sin cuenta. Con ella, consulta y
+cancela tus reservas cuando quieras.</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" action="/registro/usuario" novalidate>
+  <div class="campo">
+    <label for="nombre">Nombre</label>
+    <input type="text" id="nombre" name="nombre" required minlength="2"
+           autocomplete="name" value="{{ valores.nombre or '' }}">
+  </div>
+  <div class="campo">
+    <label for="telefono">Teléfono <span class="ayuda-inline">(el que usas al reservar)</span></label>
+    <input type="tel" id="telefono" name="telefono" required minlength="9"
+           autocomplete="tel" value="{{ valores.telefono or '' }}">
+  </div>
+  <div class="campo">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required autocomplete="username"
+           value="{{ valores.email or '' }}">
+  </div>
+  <div class="campo">
+    <label for="password">Contraseña <span class="ayuda-inline">(mínimo 8 caracteres)</span></label>
+    <input type="password" id="password" name="password" required minlength="8"
+           autocomplete="new-password">
+  </div>
+  <button type="submit" class="principal">Crear cuenta</button>
+</form>
+
+<p class="ayuda">¿Ya tienes cuenta? <a href="/usuario/login">Inicia sesión</a>.</p>
+{% endblock %}

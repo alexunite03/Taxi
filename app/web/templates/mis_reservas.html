@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Mis reservas{% endblock %}
+{% block contenido %}
+<header class="panel-cabecera">
+  <h1>Mis reservas</h1>
+  <form method="post" action="/usuario/logout">
+    <button type="submit" class="secundario">Salir</button>
+  </form>
+</header>
+<p class="sub">{{ usuario.nombre }} · {{ usuario.telefono }}</p>
+
+{% if not reservas %}
+<p>Todavía no tienes reservas asociadas al teléfono {{ usuario.telefono }}.
+Reserva desde el enlace o QR de tu taxista y aparecerán aquí.</p>
+{% endif %}
+
+<ul class="lista-reservas">
+  {% for r in reservas %}
+  <li class="reserva estado-{{ r.estado }}">
+    <strong>{{ r.cotizacion.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong>
+    · {{ r.cotizacion.origen_texto }} → {{ r.cotizacion.destino_texto }}<br>
+    {{ r.precio_cerrado }} € · <em>{{ r.estado }}</em> · con {{ r.tenant.nombre }}
+    · <a href="/r/{{ r.token_publico }}">Ver justificante</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}
