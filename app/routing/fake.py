@@ -64,4 +64,5 @@ class FakeRouteProvider:
             dist_km_total=dist,
             tiempo_h_total=tiempo,
             peaje_estimado=None,
+            geometria=[[origen.lat, origen.lng], [destino.lat, destino.lng]],
         )

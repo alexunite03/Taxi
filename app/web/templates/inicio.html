@@ -1,16 +1,29 @@
 {% extends "base.html" %}
-{% block titulo %}Reservas de taxi con precio cerrado{% endblock %}
+{% block titulo %}TaxiMad — taxi con precio cerrado{% endblock %}
 {% block contenido %}
-<h1>Reservas de taxi con precio cerrado</h1>
-<p class="sub">Plataforma para titulares de licencia del A.P.C. de Madrid.</p>
+<section class="hero">
+  <h1>Tu taxi, con el precio cerrado antes de subir</h1>
+  <p>Reserva con antelación, conoce el precio exacto calculado con las tarifas
+  oficiales de Madrid y recibe tu justificante al momento. Sin sorpresas al
+  bajar la bandera: si el taxímetro marca menos, pagas menos.</p>
+  <div class="acciones-hero">
+    <a class="principal" href="/registro/usuario">Crear cuenta de pasajero</a>
+    <a class="secundario" href="/usuario/login">Ver mis reservas</a>
+  </div>
+</section>
 
-<p>Si eres <strong>pasajero</strong>, usa el enlace o el código QR que te ha
-dado tu taxista: la dirección de reserva tiene la forma
-<code>/t/nombre-del-taxista</code>.</p>
-
-<p>Si eres <strong>taxista</strong>, entra en tu panel:</p>
-<p><a class="principal" href="/panel">Acceder al panel</a></p>
-
-<p><a class="secundario" href="/registro">Crear cuenta</a>
-<a class="secundario" href="/usuario/login">Mis reservas</a></p>
+<div class="tarjetas-registro">
+  <div class="tarjeta-registro">
+    <h2>¿Vas a reservar?</h2>
+    <p>Usa el enlace o el código QR de tu taxista (tiene la forma
+    <code>/t/nombre-del-taxista</code>). Escribes origen y destino, ves el
+    precio cerrado en el mapa y confirmas. Sin registro obligatorio.</p>
+  </div>
+  <div class="tarjeta-registro">
+    <h2>¿Eres taxista?</h2>
+    <p>Titular de licencia del A.P.C. de Madrid: consigue tu página de
+    reservas con precio cerrado, tu QR para el reposacabezas y tu agenda.</p>
+    <a class="principal" href="/registro/taxista">Crear cuenta de taxista</a>
+  </div>
+</div>
 {% endblock %}

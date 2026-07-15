@@ -12,9 +12,14 @@ class Settings(BaseSettings):
     secret_key: str = "cambia-esto-en-produccion"
     base_url: str = "http://localhost:8000"
 
-    # fake | google — con 'google' hace falta la API key
-    route_provider: str = "fake"
+    # Proveedor de geocodificación y rutas:
+    #   osm    → Nominatim + OSRM públicos (gratis, sin API key; por defecto)
+    #   google → Geocoding + Routes con tráfico (producción, requiere key)
+    #   fake   → determinista sin red (tests)
+    route_provider: str = "osm"
     google_maps_api_key: str = ""
+    nominatim_url: str = "https://nominatim.openstreetmap.org"
+    osrm_url: str = "https://router.project-osrm.org"
 
     # Caducidad de la cotización (plan §3): 15 minutos
     cotizacion_ttl_min: int = 15

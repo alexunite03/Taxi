@@ -3,9 +3,16 @@ from .fake import FakeGeocoder, FakeRouteProvider
 
 
 def crear_proveedores() -> tuple[Geocoder, RouteProvider]:
-    """Fábrica según configuración: 'fake' (desarrollo) o 'google'."""
+    """Fábrica según configuración: 'osm' (por defecto), 'google' o 'fake'."""
     from app.config import settings
 
+    if settings.route_provider == "osm":
+        from .osm import NominatimGeocoder, OSRMRouteProvider
+
+        return (
+            NominatimGeocoder(settings.nominatim_url, settings.proveedor_email),
+            OSRMRouteProvider(settings.osrm_url),
+        )
     if settings.route_provider == "google":
         from .google import GoogleGeocoder, GoogleRouteProvider
 

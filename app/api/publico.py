@@ -55,6 +55,30 @@ class ReservaIn(BaseModel):
     website: str | None = None  # honeypot
 
 
+@router.get("/t/{slug}/geocode")
+def geocode(
+    q: str,
+    request: Request,
+    tenant: Tenant = Depends(tenant_por_slug),
+    provs=Depends(proveedores),
+):
+    """Autocompletar de direcciones para el formulario (paso 1 y 2)."""
+    limitar_por_ip(request)
+    q = q.strip()
+    if len(q) < 3:
+        return {"opciones": []}
+    geocoder, _ = provs
+    try:
+        lugares = geocoder.geocodificar(q)
+    except Exception:
+        return {"opciones": []}  # el formulario sigue funcionando sin sugerencias
+    return {
+        "opciones": [
+            {"texto": l.texto, "lat": l.lat, "lng": l.lng} for l in lugares[:5]
+        ]
+    }
+
+
 @router.post("/t/{slug}/cotizaciones")
 def cotizar(
     datos: CotizacionIn,

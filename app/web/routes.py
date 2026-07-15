@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.antifraude import comprobar_honeypot, limitar_por_ip
 from app.db import get_db
 from app.models import Tenant
+from app.routing import Lugar
 from app.services import justificantes
 from app.services.cotizaciones import (
     DecisionPeajeRequerida,
@@ -94,6 +95,10 @@ def cotizar_web(
     destino: str = Form(...),
     fecha_hora: str = Form(...),
     con_peaje: str | None = Form(None),  # '', 'si' o 'no'
+    origen_lat: str | None = Form(None),
+    origen_lng: str | None = Form(None),
+    destino_lat: str | None = Form(None),
+    destino_lng: str | None = Form(None),
     website: str | None = Form(None),
     tenant: Tenant = Depends(tenant_por_slug),
     db: Session = Depends(get_db),
@@ -104,6 +109,13 @@ def cotizar_web(
     valores = {"origen": origen, "destino": destino, "fecha_hora": fecha_hora}
     geocoder, rutas = provs
     decision_peaje = {"si": True, "no": False}.get(con_peaje or "")
+
+    def lugar(texto, lat, lng):
+        try:
+            return Lugar(texto=texto.strip(), lat=float(lat), lng=float(lng))
+        except (TypeError, ValueError):
+            return None
+
     try:
         cot = crear_cotizacion(
             db,
@@ -114,6 +126,8 @@ def cotizar_web(
             destino,
             parsear_fecha_recogida(fecha_hora),
             con_peaje=decision_peaje,
+            origen_lugar=lugar(origen, origen_lat, origen_lng),
+            destino_lugar=lugar(destino, destino_lat, destino_lng),
         )
         db.commit()
     except DecisionPeajeRequerida as e:

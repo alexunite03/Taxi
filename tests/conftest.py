@@ -6,6 +6,7 @@ os.environ["TAXI_DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
 os.environ["TAXI_JUSTIFICANTES_DIR"] = f"{_tmp}/justificantes"
 os.environ["TAXI_SEED_DEMO"] = "0"
 os.environ["TAXI_RATE_LIMIT_POR_IP_HORA"] = "1000"
+os.environ["TAXI_ROUTE_PROVIDER"] = "fake"
 
 import pytest
 from fastapi.testclient import TestClient

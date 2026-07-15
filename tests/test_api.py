@@ -208,3 +208,55 @@ def test_cotizacion_no_reutilizable(client):
     r = client.post("/api/t/demo/reservas", json=datos)
     assert r.status_code == 422
     assert "ya se convirtió" in r.json()["detail"]
+
+
+def test_geocode_endpoint(client):
+    r = client.get("/api/t/demo/geocode?q=Calle de Alcalá 100")
+    assert r.status_code == 200
+    opciones = r.json()["opciones"]
+    assert len(opciones) == 1
+    assert {"texto", "lat", "lng"} <= set(opciones[0])
+    # Menos de 3 caracteres: sin sugerencias (política Nominatim)
+    assert client.get("/api/t/demo/geocode?q=Ca").json() == {"opciones": []}
+
+
+def test_cotizar_con_coordenadas_elegidas(client, db):
+    r = client.post(
+        "/t/demo/cotizar",
+        data={
+            "origen": "Calle de Alcalá 100, Madrid",
+            "destino": "Plaza Mayor 1, Madrid",
+            "fecha_hora": fecha_recogida(),
+            "origen_lat": "40.42", "origen_lng": "-3.68",
+            "destino_lat": "40.415", "destino_lng": "-3.71",
+        },
+    )
+    assert r.status_code == 200
+    assert "Precio cerrado" in r.text
+    # La oferta lleva el trazado embebido para el mapa
+    assert "datos-ruta" in r.text
+    cot = db.execute(select(Cotizacion).order_by(Cotizacion.creada_en.desc())).scalars().first()
+    assert cot.origen_lat == 40.42            # usó las coords elegidas, sin re-geocodificar
+    assert cot.ruta_geojson and len(cot.ruta_geojson) >= 2
+
+
+def test_caida_del_proveedor_da_error_amable(client):
+    from app.main import app as la_app
+
+    class GeocoderRoto:
+        def geocodificar(self, texto):
+            raise RuntimeError("red caída")
+
+    original = la_app.state.geocoder
+    la_app.state.geocoder = GeocoderRoto()
+    try:
+        r = pedir_cotizacion(client)
+        assert r.status_code == 422
+        assert "Inténtalo de nuevo" in r.json()["detail"]
+        # Y en el formulario web tampoco hay 500
+        w = client.post("/t/demo/cotizar", data={
+            "origen": "Calle Mayor 1", "destino": "Sol 1",
+            "fecha_hora": fecha_recogida()})
+        assert w.status_code == 200 and "Inténtalo de nuevo" in w.text
+    finally:
+        la_app.state.geocoder = original

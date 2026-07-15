@@ -39,6 +39,14 @@ class DesambiguacionRequerida(ErrorCotizacion):
         super().__init__(f"Hay varias coincidencias para {campo}")
 
 
+class ServicioNoDisponible(ErrorCotizacion):
+    def __init__(self):
+        super().__init__(
+            "No hemos podido calcular la ruta en este momento. "
+            "Inténtalo de nuevo en unos segundos."
+        )
+
+
 class DecisionPeajeRequerida(ErrorCotizacion):
     """La ruta más rápida incluye peaje y el pasajero aún no ha decidido."""
 
@@ -77,17 +85,27 @@ def crear_cotizacion(
     destino_texto: str,
     fecha_hora_recogida: datetime,
     con_peaje: bool | None = None,
+    origen_lugar: Lugar | None = None,
+    destino_lugar: Lugar | None = None,
 ) -> Cotizacion:
     if fecha_hora_recogida.tzinfo is None:
         raise AntelacionInvalida("La fecha de recogida necesita zona horaria")
     _validar_antelacion(tenant, fecha_hora_recogida)
 
-    origen = _geocodificar(geocoder, "origen", origen_texto)
-    destino = _geocodificar(geocoder, "destino", destino_texto)
-
-    ruta = rutas.calcular(
-        origen, destino, fecha_hora_recogida, con_peaje=bool(con_peaje)
-    )
+    # Si el formulario ya trae el lugar elegido en el autocompletar, no se
+    # vuelve a geocodificar (y no hay ambigüedad posible). Una caída del
+    # proveedor externo (red, cuota) se convierte en un error amable, nunca
+    # en un 500.
+    try:
+        origen = origen_lugar or _geocodificar(geocoder, "origen", origen_texto)
+        destino = destino_lugar or _geocodificar(geocoder, "destino", destino_texto)
+        ruta = rutas.calcular(
+            origen, destino, fecha_hora_recogida, con_peaje=bool(con_peaje)
+        )
+    except ErrorCotizacion:
+        raise
+    except Exception:
+        raise ServicioNoDisponible()
 
     # Paso 4 del formulario: si hay peaje posible y el pasajero no ha
     # decidido, se le pregunta antes de ofertar.
@@ -114,6 +132,7 @@ def crear_cotizacion(
         con_peaje=bool(con_peaje and peaje),
         importe_peaje=peaje if peaje else None,
         dist_km=ruta.dist_km_total,
+        ruta_geojson=ruta.geometria,
         precio=resultado.precio,
         descuento_contaminacion=resultado.payload["descuento_no2"] is not None,
         calculo_payload=resultado.payload,

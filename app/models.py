@@ -95,6 +95,7 @@ class Cotizacion(Base):
     importe_peaje: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
 
     dist_km: Mapped[float] = mapped_column(Numeric(7, 2))
+    ruta_geojson: Mapped[list | None] = mapped_column(JSON, nullable=True)
     precio: Mapped[float] = mapped_column(Numeric(7, 2))
     descuento_contaminacion: Mapped[bool] = mapped_column(Boolean, default=False)
     calculo_payload: Mapped[dict] = mapped_column(JSON)

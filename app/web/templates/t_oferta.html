@@ -1,57 +1,87 @@
 {% extends "base.html" %}
 {% block titulo %}Tu precio cerrado — {{ tenant.nombre }}{% endblock %}
-{% block contenido %}
-<h1>Precio cerrado: {{ cot.precio }} € <span class="iva">(IVA incluido)</span></h1>
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
 
-<dl class="resumen">
-  <dt>Origen</dt><dd>{{ cot.origen_texto }}</dd>
-  <dt>Destino</dt><dd>{{ cot.destino_texto }}</dd>
-  <dt>Recogida</dt><dd>{{ cot.fecha_hora_recogida.strftime('%d/%m/%Y') }} a las {{ cot.fecha_hora_recogida.strftime('%H:%M') }}</dd>
-  <dt>Distancia estimada</dt><dd>{{ cot.dist_km }} km</dd>
-</dl>
+{% block cuerpo %}
+<div class="reserva-layout">
+  <div id="mapa" class="mapa" role="presentation"></div>
 
-{% if cot.descuento_contaminacion %}
-<p class="badge-verde">Incluye descuento del 10 % por episodio de contaminación.</p>
-{% endif %}
-{% if cot.con_peaje %}
-<p class="badge">Incluye peaje aceptado por el cliente ({{ cot.importe_peaje }} €).</p>
-{% endif %}
+  <section class="panel-reserva" aria-label="Tu oferta">
+    <div class="tarjeta-precio">
+      <div class="meta">Precio cerrado · IVA incluido</div>
+      <div class="importe">{{ cot.precio }} €</div>
+      <div class="meta">{{ cot.dist_km }} km ·
+        {{ cot.fecha_hora_recogida.strftime('%d/%m/%Y') }} a las
+        {{ cot.fecha_hora_recogida.strftime('%H:%M') }}</div>
+    </div>
 
-<div class="condiciones">
-  <h2>Condiciones</h2>
-  <p>Precio máximo calculado con las tarifas oficiales del taxi de Madrid
-  (T1/T2, BOCM 2026) y las instrucciones municipales de precio cerrado.
-  Pagarás el importe menor entre este precio y el que marque el taxímetro.
-  Espera de cortesía de 5 minutos en el punto de recogida. Itinerario directo,
-  sin paradas intermedias. El pago se realiza a bordo (efectivo o tarjeta).
-  Recibirás el justificante antes de iniciar el viaje.</p>
-  <p class="ayuda">Esta oferta caduca a los 15 minutos.</p>
+    <div class="linea-viaje">
+      <span class="punto" aria-hidden="true"></span>
+      <span>{{ cot.origen_texto }}</span>
+      <span class="punto cuadrado" aria-hidden="true"></span>
+      <span>{{ cot.destino_texto }}</span>
+    </div>
+
+    {% if cot.descuento_contaminacion %}
+    <p class="badge-verde">Incluye descuento del 10 % por episodio de contaminación.</p>
+    {% endif %}
+    {% if cot.con_peaje %}
+    <p class="badge">Incluye peaje aceptado por el cliente ({{ cot.importe_peaje }} €).</p>
+    {% endif %}
+
+    <details class="condiciones">
+      <summary>Condiciones del precio cerrado</summary>
+      <p>Precio máximo calculado con las tarifas oficiales del taxi de Madrid
+      (T1/T2, BOCM 2026) y las instrucciones municipales de precio cerrado.
+      Pagarás el importe menor entre este precio y el que marque el taxímetro.
+      Espera de cortesía de 5 minutos en el punto de recogida. Itinerario directo,
+      sin paradas intermedias. El pago se realiza a bordo (efectivo o tarjeta).
+      Recibirás el justificante antes de iniciar el viaje.</p>
+      <p class="ayuda">Esta oferta caduca a los 15 minutos.</p>
+    </details>
+
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+    <h2>Confirma tu reserva</h2>
+    <form method="post" action="/t/{{ tenant.slug }}/reservar" novalidate>
+      <input type="hidden" name="cotizacion_id" value="{{ cot.id }}">
+      <div class="campo">
+        <label for="nombre">Tu nombre</label>
+        <input type="text" id="nombre" name="nombre" required minlength="2" autocomplete="name"
+               value="{{ usuario.nombre if usuario else '' }}">
+      </div>
+      <div class="campo">
+        <label for="telefono">Teléfono</label>
+        <input type="tel" id="telefono" name="telefono" required minlength="9" autocomplete="tel"
+               value="{{ usuario.telefono if usuario else '' }}">
+      </div>
+      <div class="campo">
+        <label for="email">Email <span class="ayuda-inline">(recomendado: te enviamos el justificante)</span></label>
+        <input type="email" id="email" name="email" autocomplete="email"
+               value="{{ usuario.email if usuario else '' }}">
+      </div>
+      <div class="visualmente-oculto" aria-hidden="true">
+        <label for="website">No rellenes este campo</label>
+        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+      <button type="submit" class="principal">Aceptar reserva · {{ cot.precio }} €</button>
+      <p style="margin-top:.6rem"><a class="secundario" style="width:100%"
+         href="/t/{{ tenant.slug }}">Modificar viaje</a></p>
+    </form>
+  </section>
 </div>
 
-{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<script id="datos-ruta" type="application/json">{{ {
+  "origen": [cot.origen_lat, cot.origen_lng],
+  "destino": [cot.destino_lat, cot.destino_lng],
+  "ruta": cot.ruta_geojson,
+} | tojson }}</script>
+{% endblock %}
 
-<form method="post" action="/t/{{ tenant.slug }}/reservar" novalidate>
-  <input type="hidden" name="cotizacion_id" value="{{ cot.id }}">
-  <div class="campo">
-    <label for="nombre">Tu nombre</label>
-    <input type="text" id="nombre" name="nombre" required minlength="2" autocomplete="name"
-           value="{{ usuario.nombre if usuario else '' }}">
-  </div>
-  <div class="campo">
-    <label for="telefono">Teléfono</label>
-    <input type="tel" id="telefono" name="telefono" required minlength="9" autocomplete="tel"
-           value="{{ usuario.telefono if usuario else '' }}">
-  </div>
-  <div class="campo">
-    <label for="email">Email <span class="ayuda-inline">(recomendado: te enviamos el justificante)</span></label>
-    <input type="email" id="email" name="email" autocomplete="email"
-           value="{{ usuario.email if usuario else '' }}">
-  </div>
-  <div class="visualmente-oculto" aria-hidden="true">
-    <label for="website">No rellenes este campo</label>
-    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
-  </div>
-  <button type="submit" class="principal">Aceptar reserva</button>
-  <a class="secundario" href="/t/{{ tenant.slug }}">Modificar</a>
-</form>
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/reserva.js"></script>
+<script>TaxiReserva.initOferta();</script>
 {% endblock %}

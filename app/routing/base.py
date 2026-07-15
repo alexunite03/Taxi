@@ -28,6 +28,9 @@ class RutaCalculada:
     # Importe estimado del peaje de la ruta más rápida, si existe alternativa
     # de peaje. None → la ruta no admite peaje y no hay que preguntar.
     peaje_estimado: Decimal | None = None
+    # Trazado de la ruta como lista de puntos [lat, lng] (orden Leaflet),
+    # para pintarla en el mapa. None si el proveedor no la da.
+    geometria: list | None = None
 
 
 class Geocoder(Protocol):

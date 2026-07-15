@@ -5,13 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Reserva tu taxi{% endblock %}</title>
   <link rel="stylesheet" href="/static/styles.css">
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
+  <header class="barra">
+    <a class="marca" href="/">TaxiMad</a>
+    <nav class="barra-nav">
+      <a href="/usuario/login">Mis reservas</a>
+      <a href="/panel">Soy taxista</a>
+    </nav>
+  </header>
+  {% block cuerpo %}
   <main class="contenedor">
     {% block contenido %}{% endblock %}
   </main>
+  {% endblock %}
   <footer class="pie">
     <a href="/aviso-legal">Aviso legal</a> · <a href="/cookies">Cookies</a>
   </footer>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

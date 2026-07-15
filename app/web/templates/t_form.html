@@ -1,62 +1,86 @@
 {% extends "base.html" %}
 {% block titulo %}Reserva tu taxi — {{ tenant.nombre }}{% endblock %}
-{% block contenido %}
-<h1>Reserva tu taxi con precio cerrado</h1>
-<p class="sub">Licencia {{ tenant.num_licencia }} · A.P.C. de Madrid</p>
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
 
-{% if error %}
-<p class="error" role="alert">{{ error }}</p>
-{% endif %}
+{% block cuerpo %}
+<div class="reserva-layout">
+  <div id="mapa" class="mapa" role="presentation"></div>
 
-{% if pregunta_peaje %}
-<div class="aviso" role="alert">
-  <p>La ruta más rápida incluye un peaje de aprox. <strong>{{ pregunta_peaje }} €</strong>.
-  ¿Quieres usarla?</p>
+  <section class="panel-reserva" aria-label="Formulario de reserva">
+    <h1>¿A dónde vas?</h1>
+    <p class="sub">Precio cerrado por adelantado · {{ tenant.nombre }} ·
+    Licencia {{ tenant.num_licencia }} · A.P.C. de Madrid</p>
+
+    {% if error %}
+    <p class="error" role="alert">{{ error }}</p>
+    {% endif %}
+
+    {% if pregunta_peaje %}
+    <div class="aviso" role="alert">
+      <p>La ruta más rápida incluye un peaje de aprox.
+      <strong>{{ pregunta_peaje }} €</strong>. ¿Quieres usarla?</p>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/t/{{ tenant.slug }}/cotizar" novalidate>
+      <div class="campo">
+        <label for="origen">Recogida</label>
+        <input type="text" id="origen" name="origen" required minlength="3"
+               autocomplete="off" value="{{ valores.origen or '' }}"
+               placeholder="Calle y número, municipio">
+        <ul class="sugerencias" id="origen-sugerencias" role="listbox"></ul>
+        <input type="hidden" id="origen_lat" name="origen_lat">
+        <input type="hidden" id="origen_lng" name="origen_lng">
+      </div>
+
+      <div class="campo">
+        <label for="destino">Destino</label>
+        <input type="text" id="destino" name="destino" required minlength="3"
+               autocomplete="off" value="{{ valores.destino or '' }}"
+               placeholder="¿A dónde vas?">
+        <ul class="sugerencias" id="destino-sugerencias" role="listbox"></ul>
+        <input type="hidden" id="destino_lat" name="destino_lat">
+        <input type="hidden" id="destino_lng" name="destino_lng">
+      </div>
+
+      <div class="campo">
+        <label for="fecha_hora">Fecha y hora de recogida</label>
+        <input type="datetime-local" id="fecha_hora" name="fecha_hora" required
+               value="{{ valores.fecha_hora or '' }}">
+        <p class="ayuda">Antelación mínima: {{ tenant.antelacion_min }} minutos.</p>
+      </div>
+
+      {% if pregunta_peaje %}
+      <fieldset class="campo">
+        <legend>Peaje</legend>
+        <label class="opcion"><input type="radio" name="con_peaje" value="si" required> Sí, con peaje ({{ pregunta_peaje }} €)</label>
+        <label class="opcion"><input type="radio" name="con_peaje" value="no"> No, sin peaje</label>
+      </fieldset>
+      {% endif %}
+
+      <div class="visualmente-oculto" aria-hidden="true">
+        <label for="website">No rellenes este campo</label>
+        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+
+      <button type="submit" class="principal">Ver precio cerrado</button>
+    </form>
+
+    <p class="rgpd">
+      {{ tenant.nombre }}, NIF {{ tenant.nif }}, titular de la licencia
+      {{ tenant.num_licencia }} del APC de Madrid, tratará tus datos para gestionar
+      esta reserva (ejecución de contrato). Se conservarán durante los plazos
+      legales (4 años). Derechos en {{ tenant.email }}. Más información en la
+      <a href="/t/{{ tenant.slug }}/privacidad">política de privacidad</a>.
+    </p>
+  </section>
 </div>
-{% endif %}
+{% endblock %}
 
-<form method="post" action="/t/{{ tenant.slug }}/cotizar" novalidate>
-  <div class="campo">
-    <label for="origen">1 · ¿Dónde te recogemos?</label>
-    <input type="text" id="origen" name="origen" required minlength="3"
-           autocomplete="street-address" value="{{ valores.origen or '' }}"
-           placeholder="Calle y número, municipio">
-  </div>
-
-  <div class="campo">
-    <label for="destino">2 · ¿A dónde vas?</label>
-    <input type="text" id="destino" name="destino" required minlength="3"
-           value="{{ valores.destino or '' }}" placeholder="Calle y número, municipio">
-  </div>
-
-  <div class="campo">
-    <label for="fecha_hora">3 · Fecha y hora de recogida</label>
-    <input type="datetime-local" id="fecha_hora" name="fecha_hora" required
-           value="{{ valores.fecha_hora or '' }}">
-    <p class="ayuda">Antelación mínima: {{ tenant.antelacion_min }} minutos.</p>
-  </div>
-
-  {% if pregunta_peaje %}
-  <fieldset class="campo">
-    <legend>4 · Peaje</legend>
-    <label class="opcion"><input type="radio" name="con_peaje" value="si" required> Sí, con peaje ({{ pregunta_peaje }} €)</label>
-    <label class="opcion"><input type="radio" name="con_peaje" value="no"> No, sin peaje</label>
-  </fieldset>
-  {% endif %}
-
-  <div class="visualmente-oculto" aria-hidden="true">
-    <label for="website">No rellenes este campo</label>
-    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
-  </div>
-
-  <button type="submit" class="principal">Ver precio cerrado</button>
-</form>
-
-<p class="rgpd">
-  {{ tenant.nombre }}, NIF {{ tenant.nif }}, titular de la licencia
-  {{ tenant.num_licencia }} del APC de Madrid, tratará tus datos para gestionar
-  esta reserva (ejecución de contrato). Se conservarán durante los plazos
-  legales (4 años). Derechos en {{ tenant.email }}. Más información en la
-  <a href="/t/{{ tenant.slug }}/privacidad">política de privacidad</a>.
-</p>
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/reserva.js"></script>
+<script>TaxiReserva.initFormulario({{ tenant.slug | tojson }});</script>
 {% endblock %}

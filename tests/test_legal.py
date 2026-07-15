@@ -41,4 +41,5 @@ def test_pie_con_enlaces_legales(client):
 def test_pagina_raiz_no_da_404(client):
     r = client.get("/")
     assert r.status_code == 200
-    assert "Acceder al panel" in r.text
+    assert "precio cerrado" in r.text.lower()
+    assert "/registro/taxista" in r.text
