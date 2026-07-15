@@ -33,6 +33,13 @@ class FakeGeocoder:
         lng = _LNG[0] + (h[2] * 256 + h[3]) / 65535 * (_LNG[1] - _LNG[0])
         return [Lugar(texto=f"{texto}, Madrid", lat=round(lat, 6), lng=round(lng, 6))]
 
+    def invertir(self, lat: float, lng: float) -> Lugar | None:
+        return Lugar(
+            texto=f"Mi ubicación ({round(lat, 5)}, {round(lng, 5)})",
+            lat=lat,
+            lng=lng,
+        )
+
 
 def _haversine_km(a: Lugar, b: Lugar) -> Decimal:
     r = 6371.0

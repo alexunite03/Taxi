@@ -7,6 +7,34 @@
 <p class="error" role="alert">Esta reserva está <strong>cancelada</strong>.</p>
 {% elif reserva.estado == 'completada' %}
 <p class="badge-verde">Servicio completado. ¡Gracias!</p>
+
+{% if valoracion %}
+<p class="badge">Tu valoración:
+  <span class="estrellas">{{ '★' * valoracion.puntuacion }}{{ '☆' * (5 - valoracion.puntuacion) }}</span>
+  {% if valoracion.comentario %}· «{{ valoracion.comentario }}»{% endif %}</p>
+{% else %}
+<section class="condiciones" aria-labelledby="titulo-valorar">
+  <h2 id="titulo-valorar">¿Qué tal fue el viaje con {{ reserva.tenant.nombre.split()[0] }}?</h2>
+  <form method="post" action="/r/{{ reserva.token_publico }}/valorar">
+    <fieldset class="campo" style="border:none;padding:0;margin:.5rem 0">
+      <legend>Puntuación</legend>
+      <div class="estrellas-opciones">
+        {% for n in [1,2,3,4,5] %}
+        <label class="opcion-estrella">
+          <input type="radio" name="puntuacion" value="{{ n }}" {{ 'required' if n == 1 }}>
+          <span>{{ n }} ★</span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div class="campo">
+      <label for="comentario">Comentario <span class="ayuda-inline">(opcional)</span></label>
+      <input type="text" id="comentario" name="comentario" maxlength="400">
+    </div>
+    <button type="submit" class="principal" style="width:auto">Enviar valoración</button>
+  </form>
+</section>
+{% endif %}
 {% else %}
 <p class="badge-verde">Reserva confirmada. Guarda este enlace: es tu justificante.</p>
 {% endif %}

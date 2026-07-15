@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block titulo %}Bolsa de viajes — {{ tenant.nombre }}{% endblock %}
+{% block contenido %}
+<nav class="panel-nav" aria-label="Secciones del panel">
+  <a href="/panel">Agenda</a>
+  <a href="/panel/bolsa" aria-current="page">Bolsa de viajes</a>
+  <a href="/panel/perfil">Mi perfil</a>
+</nav>
+
+<header class="panel-cabecera">
+  <h1>Bolsa de viajes</h1>
+  <form method="post" action="/panel/bolsa">
+    <button type="submit" class="{{ 'secundario' if tenant.disponible_bolsa else 'principal' }}" style="width:auto">
+      {{ 'Dejar de recibir viajes' if tenant.disponible_bolsa else 'Activar la bolsa' }}
+    </button>
+  </form>
+</header>
+
+{% if not tenant.disponible_bolsa %}
+<p class="aviso">Tienes la bolsa desactivada: no ves las solicitudes abiertas.</p>
+{% else %}
+<p class="sub">Viajes publicados por pasajeros que buscan taxista. El primero
+que acepta se lo lleva.</p>
+
+<p>
+  <button type="button" id="cerca" class="secundario">📍 Ordenar por cercanía a mi posición</button>
+  {% if con_ubicacion %}<span class="badge-verde" style="padding:.4rem .75rem">Ordenado por cercanía</span>{% endif %}
+</p>
+
+{% if not solicitudes %}<p class="ayuda">Ahora mismo no hay solicitudes abiertas.</p>{% endif %}
+<ul class="lista-reservas">
+  {% for s in solicitudes %}
+  <li class="reserva">
+    <strong>{{ s.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong>
+    {% if s.distancia_km is defined %}
+    · <span class="badge" style="padding:.15rem .5rem">a {{ s.distancia_km }} km de ti</span>
+    {% endif %}<br>
+    {{ s.origen_texto }} → {{ s.destino_texto }}<br>
+    Estimado: <strong>{{ s.precio_estimado }} €</strong> · {{ s.nombre }}
+    <div class="acciones">
+      <form method="post" action="/panel/solicitudes/{{ s.id }}/aceptar">
+        <button type="submit" class="principal" style="width:auto">Aceptar viaje</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('cerca') && document.getElementById('cerca').addEventListener('click', function () {
+  if (!navigator.geolocation) { alert('Tu navegador no permite la geolocalización'); return; }
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    var u = new URL(window.location);
+    u.searchParams.set('lat', pos.coords.latitude.toFixed(6));
+    u.searchParams.set('lng', pos.coords.longitude.toFixed(6));
+    window.location = u;
+  }, function () { alert('No hemos podido obtener tu ubicación'); });
+});
+</script>
+{% endblock %}

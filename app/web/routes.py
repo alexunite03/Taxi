@@ -203,10 +203,18 @@ def ver_reserva(request: Request, token: str, db: Session = Depends(get_db)):
         return HTMLResponse("<h1>Reserva no encontrada</h1>", status_code=404)
     j = reserva.justificante
     justificante_html = justificantes.render_fragment(reserva, j.serie, j.numero)
+    from sqlalchemy import select as _select
+
+    from app.models import Valoracion
+
+    valoracion = db.execute(
+        _select(Valoracion).where(Valoracion.reserva_id == reserva.id)
+    ).scalar_one_or_none()
     return templates.TemplateResponse(
         request,
         "r_reserva.html",
-        {"reserva": reserva, "justificante_html": justificante_html},
+        {"reserva": reserva, "justificante_html": justificante_html,
+         "valoracion": valoracion},
     )
 
 

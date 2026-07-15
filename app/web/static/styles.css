@@ -1,14 +1,16 @@
 /* Estilo "ride-hailing": negro/blanco, tarjetas limpias, mapa protagonista.
    Accesibilidad conservada: contraste >= 4,5:1, objetivos 44px, foco visible. */
 :root {
-  --negro: #09090b;
+  --negro: #101014;
   --gris-900: #1c1c1f;
   --gris-600: #55555e;
   --gris-300: #d9d9de;
-  --gris-100: #f3f3f5;
+  --gris-100: #f4f4f6;
   --blanco: #ffffff;
   --verde: #0a6b3d;
   --rojo: #a11a1a;
+  --rojo-taxi: #c8102e;      /* la franja del taxi de Madrid */
+  --rojo-taxi-oscuro: #a30d25;
   --radio: 12px;
 }
 * { box-sizing: border-box; }
@@ -24,10 +26,10 @@ body {
   min-height: 100vh;
 }
 
-/* Barra superior */
+/* Barra superior: blanca con la franja diagonal roja */
 .barra {
-  background: var(--negro);
-  color: var(--blanco);
+  background: var(--blanco);
+  color: var(--negro);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -35,27 +37,46 @@ body {
   position: sticky;
   top: 0;
   z-index: 1100;
+  border-bottom: 3px solid var(--rojo-taxi);
 }
 .marca {
-  color: var(--blanco);
+  color: var(--negro);
   font-weight: 800;
   font-size: 1.35rem;
   letter-spacing: -0.03em;
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
 }
-.barra-nav { display: flex; gap: .25rem; }
+.marca::before {
+  content: '';
+  width: 1.05rem;
+  height: 1.7rem;
+  background: var(--rojo-taxi);
+  transform: skewX(-18deg);
+  border-radius: 2px;
+}
+.barra-nav { display: flex; gap: .1rem; flex-wrap: nowrap; overflow-x: auto;
+  -webkit-overflow-scrolling: touch; }
 .barra-nav a {
-  color: var(--blanco);
+  color: var(--negro);
   text-decoration: none;
   font-weight: 600;
   font-size: .95rem;
-  padding: .55rem .9rem;
+  padding: .55rem .7rem;
   border-radius: 999px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
 }
-.barra-nav a:hover { background: var(--gris-900); }
+.barra-nav a:hover { background: var(--gris-100); }
+@media (max-width: 560px) {
+  .barra { padding: .45rem .75rem; gap: .5rem; }
+  .marca { font-size: 1.15rem; }
+  .barra-nav a { font-size: .85rem; padding: .5rem .55rem; }
+}
 
 .contenedor { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; width: 100%; flex: 1; }
 h1 { font-size: 1.9rem; letter-spacing: -0.02em; line-height: 1.2; margin: .5rem 0 .75rem; }
@@ -97,8 +118,8 @@ button, .principal, .secundario, .peligro {
   text-decoration: none;
   text-align: center;
 }
-.principal { background: var(--negro); color: var(--blanco); width: 100%; }
-.principal:hover { background: var(--gris-900); }
+.principal { background: var(--rojo-taxi); color: var(--blanco); width: 100%; }
+.principal:hover { background: var(--rojo-taxi-oscuro); }
 .secundario { background: var(--gris-100); color: var(--negro); }
 .secundario:hover { background: var(--gris-300); }
 .peligro { background: var(--blanco); color: var(--rojo); border-color: var(--rojo); }
@@ -172,19 +193,21 @@ button, .principal, .secundario, .peligro {
 .badge { background: var(--gris-100); border-left: 5px solid var(--negro); color: var(--gris-900);
   padding: .75rem 1rem; border-radius: 8px; }
 
-/* Tarjeta de precio (oferta) */
+/* Tarjeta de precio (oferta): blanca con banda roja */
 .tarjeta-precio {
-  background: var(--negro);
-  color: var(--blanco);
+  background: var(--blanco);
+  color: var(--negro);
+  border: 1px solid var(--gris-300);
+  border-left: 8px solid var(--rojo-taxi);
   border-radius: 16px;
   padding: 1.25rem 1.5rem;
   margin: 1rem 0;
 }
 .tarjeta-precio .importe { font-size: 2.3rem; font-weight: 800; letter-spacing: -0.03em; }
-.tarjeta-precio .meta { color: #c9c9cf; font-size: .95rem; }
+.tarjeta-precio .meta { color: var(--gris-600); font-size: .95rem; }
 .linea-viaje { display: grid; grid-template-columns: 1.1rem 1fr; gap: .35rem .6rem;
   margin: 1rem 0; align-items: start; }
-.punto { width: .8rem; height: .8rem; border-radius: 50%; background: var(--negro);
+.punto { width: .8rem; height: .8rem; border-radius: 50%; background: var(--rojo-taxi);
   margin-top: .4rem; }
 .punto.cuadrado { border-radius: 2px; }
 details.condiciones { background: var(--gris-100); border-radius: var(--radio);
@@ -200,19 +223,42 @@ details.condiciones summary { font-weight: 700; cursor: pointer; }
 
 .visualmente-oculto { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-/* Portada */
+/* Portada: blanca con la franja del taxi cruzando la esquina */
 .hero {
-  background: var(--negro);
-  color: var(--blanco);
+  position: relative;
+  overflow: hidden;
+  background: var(--blanco);
+  color: var(--negro);
+  border: 1px solid var(--gris-300);
   border-radius: 20px;
   padding: 2.5rem 2rem;
   margin: 1rem 0 1.5rem;
 }
-.hero h1 { color: var(--blanco); font-size: 2.3rem; margin: 0 0 .5rem; }
-.hero p { color: #c9c9cf; max-width: 34rem; }
-.hero .principal { background: var(--blanco); color: var(--negro); width: auto; }
-.acciones-hero { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.25rem; }
-.acciones-hero .secundario { background: var(--gris-900); color: var(--blanco); }
+.hero::after {
+  content: '';
+  position: absolute;
+  top: -25%;
+  right: -1.2rem;
+  width: 2.6rem;
+  height: 150%;
+  background: var(--rojo-taxi);
+  transform: rotate(18deg);
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -25%;
+  right: 2.2rem;
+  width: .9rem;
+  height: 150%;
+  background: var(--negro);
+  transform: rotate(18deg);
+}
+.hero h1, .hero p { padding-right: 3.5rem; }
+.hero h1 { color: var(--negro); font-size: 2.3rem; margin: 0 0 .5rem; max-width: 26rem; position: relative; z-index: 1; }
+.hero p { color: var(--gris-600); max-width: 30rem; position: relative; z-index: 1; }
+.hero .principal { width: auto; }
+.acciones-hero { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.25rem; position: relative; z-index: 1; }
 
 /* Justificante */
 .justificante { background: var(--blanco); border: 1px solid var(--gris-300);
@@ -254,3 +300,55 @@ details.condiciones summary { font-weight: 700; cursor: pointer; }
 .pie { max-width: 46rem; margin: 0 auto; padding: 1rem; font-size: .85rem;
   color: var(--gris-600); width: 100%; }
 .pie a { color: var(--gris-600); }
+
+
+/* Textarea como los inputs */
+textarea {
+  width: 100%;
+  padding: .6rem .9rem;
+  font-size: 1rem;
+  font-family: inherit;
+  border: 2px solid transparent;
+  border-radius: var(--radio);
+  background: var(--gris-100);
+  color: var(--negro);
+}
+textarea:focus-visible { outline: 3px solid #276ef1; outline-offset: 2px; }
+
+/* Navegación del panel */
+.panel-nav { display: flex; gap: .25rem; margin: .25rem 0 1rem; flex-wrap: wrap;
+  border-bottom: 2px solid var(--gris-100); }
+.panel-nav a { color: var(--gris-600); text-decoration: none; font-weight: 700;
+  padding: .6rem 1rem; min-height: 44px; display: inline-flex; align-items: center;
+  border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.panel-nav a[aria-current="page"] { color: var(--negro);
+  border-bottom-color: var(--rojo-taxi); }
+.panel-nav a:hover { color: var(--negro); }
+
+/* Perfiles */
+.avatar { border-radius: 50%; object-fit: cover; background: var(--gris-100);
+  flex-shrink: 0; }
+.avatar-grande { width: 96px; height: 96px; }
+.perfil-cabecera { display: flex; gap: 1rem; align-items: center; margin: 1rem 0; }
+.tarjeta-taxista { display: flex; gap: 1rem; align-items: flex-start; }
+.tarjeta-taxista .avatar { width: 64px; height: 64px; }
+.tarjeta-taxista-datos { flex: 1; }
+.estrellas { color: var(--rojo-taxi); font-weight: 700; }
+.buscador { display: flex; gap: .5rem; margin: 1rem 0; }
+.buscador input { flex: 1; }
+
+/* Valoración */
+.estrellas-opciones { display: flex; gap: .4rem; flex-wrap: wrap; }
+.opcion-estrella input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.opcion-estrella span { display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: .4rem .8rem; border: 2px solid var(--gris-300);
+  border-radius: var(--radio); font-weight: 700; cursor: pointer; background: var(--blanco); }
+.opcion-estrella input:checked + span { border-color: var(--rojo-taxi);
+  background: #fdeef0; color: var(--rojo-taxi); }
+.opcion-estrella input:focus-visible + span { outline: 3px solid #276ef1; outline-offset: 2px; }
+
+/* Botón-enlace de ubicación */
+.enlace-ubicacion { background: none; border: none; color: var(--rojo-taxi);
+  font-weight: 700; font-size: .95rem; padding: .5rem 0; min-height: 44px;
+  cursor: pointer; }
+.enlace-ubicacion:hover { text-decoration: underline; }

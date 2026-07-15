@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}{{ tenant.nombre }} — perfil{% endblock %}
+{% block contenido %}
+<div class="perfil-cabecera">
+  <img class="avatar avatar-grande" src="/t/{{ tenant.slug }}/foto" alt="Foto de {{ tenant.nombre }}"
+       width="96" height="96">
+  <div>
+    <h1>{{ tenant.nombre }}</h1>
+    <p class="sub">Licencia {{ tenant.num_licencia }} · A.P.C. de Madrid
+    {% if tenant.matricula %} · {{ tenant.matricula }}{% endif %}</p>
+    {% if media %}
+    <p class="estrellas" aria-label="{{ media }} sobre 5">★ {{ media }}
+      <span class="ayuda-inline">({{ total }} valoraciones)</span></p>
+    {% else %}<p class="ayuda">Sin valoraciones todavía</p>{% endif %}
+  </div>
+</div>
+
+{% if tenant.bio %}<p>{{ tenant.bio }}</p>{% endif %}
+
+<div class="acciones" style="margin:1rem 0">
+  <a class="principal" style="width:auto" href="/t/{{ tenant.slug }}">Reservar con {{ tenant.nombre.split()[0] }}</a>
+  {% if usuario %}
+  <form method="post" action="/favoritos/{{ tenant.slug }}">
+    <button type="submit" class="secundario">
+      {{ '★ Quitar de favoritos' if es_favorito else '☆ Guardar en favoritos' }}
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+{% if valoraciones %}
+<h2>Valoraciones</h2>
+<ul class="lista-reservas">
+  {% for v in valoraciones %}
+  <li class="reserva">
+    <span class="estrellas">{{ '★' * v.puntuacion }}{{ '☆' * (5 - v.puntuacion) }}</span>
+    {% if v.autor %}· {{ v.autor }}{% endif %}
+    · <span class="ayuda-inline">{{ v.creada_en.strftime('%d/%m/%Y') }}</span>
+    {% if v.comentario %}<br>{{ v.comentario }}{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

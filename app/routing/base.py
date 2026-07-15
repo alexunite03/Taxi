@@ -38,6 +38,10 @@ class Geocoder(Protocol):
         """Devuelve las coincidencias (varias → desambiguación en el paso 1)."""
         ...
 
+    def invertir(self, lat: float, lng: float) -> Lugar | None:
+        """Dirección aproximada de unas coordenadas ("usar mi ubicación")."""
+        ...
+
 
 class RouteProvider(Protocol):
     def calcular(

@@ -3,7 +3,7 @@ import io
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -77,12 +77,10 @@ def agenda(
         .scalars()
         .all()
     )
-    abiertas = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
     return templates.TemplateResponse(
         request,
         "panel_agenda.html",
-        {"tenant": tenant, "reservas": reservas, "oferta": None, "error": None,
-         "solicitudes": abiertas},
+        {"tenant": tenant, "reservas": reservas, "oferta": None, "error": None},
     )
 
 
@@ -119,12 +117,10 @@ def cotizar_asistida(
             .order_by(Reserva.creada_en.desc()).limit(100)
         ).scalars().all()
     )
-    abiertas = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
     return templates.TemplateResponse(
         request,
         "panel_agenda.html",
-        {"tenant": tenant, "reservas": reservas, "oferta": cot, "error": error,
-         "solicitudes": abiertas},
+        {"tenant": tenant, "reservas": reservas, "oferta": cot, "error": error},
     )
 
 
@@ -214,6 +210,78 @@ def descargar_justificante(
     return FileResponse(j.html_path, media_type="text/html")
 
 
+@router.get("/bolsa", response_class=HTMLResponse)
+def bolsa_pagina(
+    request: Request,
+    lat: float | None = None,
+    lng: float | None = None,
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+):
+    from app.services.bolsa import con_distancia
+
+    solicitudes = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
+    if solicitudes and lat is not None and lng is not None:
+        solicitudes = con_distancia(solicitudes, lat, lng)
+    return templates.TemplateResponse(
+        request,
+        "panel_bolsa.html",
+        {"tenant": tenant, "solicitudes": solicitudes,
+         "con_ubicacion": lat is not None and lng is not None},
+    )
+
+
+@router.get("/perfil", response_class=HTMLResponse)
+def perfil_form(
+    request: Request,
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+):
+    from app.web.perfiles import resumen_valoraciones
+
+    media, total = resumen_valoraciones(db, tenant.id)
+    return templates.TemplateResponse(
+        request, "panel_perfil.html",
+        {"tenant": tenant, "media": media, "total": total, "error": None},
+    )
+
+
+@router.post("/perfil")
+async def perfil_guardar(
+    request: Request,
+    bio: str = Form(""),
+    foto: UploadFile | None = None,
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+):
+    from app.web.perfiles import resumen_valoraciones
+
+    error = None
+    tenant.bio = bio.strip()[:500]
+    if foto is not None and foto.filename:
+        contenido = await foto.read()
+        if foto.content_type not in ("image/jpeg", "image/png"):
+            error = "La foto debe ser JPG o PNG"
+        elif len(contenido) > 2 * 1024 * 1024:
+            error = "La foto no puede superar los 2 MB"
+        else:
+            settings.fotos_dir.mkdir(parents=True, exist_ok=True)
+            ext = ".png" if foto.content_type == "image/png" else ".jpg"
+            ruta = settings.fotos_dir / f"{tenant.id}{ext}"
+            ruta.write_bytes(contenido)
+            tenant.foto_path = str(ruta)
+    db.add(tenant)
+    db.commit()
+    if error:
+        media, total = resumen_valoraciones(db, tenant.id)
+        return templates.TemplateResponse(
+            request, "panel_perfil.html",
+            {"tenant": tenant, "media": media, "total": total, "error": error},
+            status_code=422,
+        )
+    return RedirectResponse("/panel/perfil", status_code=303)
+
+
 @router.post("/bolsa")
 def toggle_bolsa(
     tenant: Tenant = Depends(tenant_sesion), db: Session = Depends(get_db)
@@ -221,7 +289,7 @@ def toggle_bolsa(
     tenant.disponible_bolsa = not tenant.disponible_bolsa
     db.add(tenant)
     db.commit()
-    return RedirectResponse("/panel", status_code=303)
+    return RedirectResponse("/panel/bolsa", status_code=303)
 
 
 @router.post("/solicitudes/{solicitud_id}/aceptar")
@@ -240,4 +308,4 @@ def aceptar_viaje(
     from app.services.notificaciones import notificar_confirmacion
 
     notificar_confirmacion(db, sender, reserva)
-    return RedirectResponse("/panel", status_code=303)
+    return RedirectResponse("/panel/bolsa", status_code=303)

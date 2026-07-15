@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # Carpeta donde se archivan los justificantes (PDF/HTML + hash)
     justificantes_dir: Path = BASE_DIR / "var" / "justificantes"
 
+    # Fotos de perfil de los taxistas
+    fotos_dir: Path = BASE_DIR / "var" / "fotos"
+
     # Datos del proveedor SaaS para los textos legales (LSSI / RGPD).
     # Rellenar al constituir la SL (checklist §17 del plan).
     proveedor_nombre: str = "[RAZÓN SOCIAL DEL PROVEEDOR, S.L.]"

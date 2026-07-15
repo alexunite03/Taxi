@@ -54,6 +54,10 @@ class Tenant(Base):
     flag_contaminacion: Mapped[bool] = mapped_column(Boolean, default=False)
     disponible_bolsa: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Perfil público
+    bio: Mapped[str] = mapped_column(String(500), default="")
+    foto_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     fecha_alta: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
@@ -276,3 +280,17 @@ class SolicitudViaje(Base):
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
     reserva: Mapped["Reserva | None"] = relationship()
+
+
+class Valoracion(Base):
+    """Valoración del pasajero tras un servicio completado (una por reserva)."""
+
+    __tablename__ = "valoraciones"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    reserva_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("reservas.id"), unique=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    puntuacion: Mapped[int] = mapped_column(Integer)  # 1..5
+    comentario: Mapped[str] = mapped_column(String(400), default="")
+    autor: Mapped[str] = mapped_column(String(120), default="")
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)

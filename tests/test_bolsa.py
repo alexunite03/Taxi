@@ -9,7 +9,23 @@ from .test_cuentas import USUARIO
 from .test_notificaciones import espia  # noqa: F401
 
 
+VIAJERO = {
+    "nombre": "Carlos Vega",
+    "telefono": "699887766",
+    "email": "carlos@example.com",
+    "password": "clave-carlos-1",
+}
+
+
+def login_viajero(client):
+    r = client.post("/registro/usuario", data=VIAJERO)
+    if r.status_code == 422:  # ya registrado en este test
+        client.post("/usuario/login", data={
+            "email": VIAJERO["email"], "password": VIAJERO["password"]})
+
+
 def publicar_viaje(client, **cambios):
+    login_viajero(client)
     datos = {
         "origen": "Calle de Alcalá 100",
         "destino": "Plaza de Castilla 1",
@@ -54,9 +70,9 @@ def test_taxista_ve_y_acepta_el_viaje(client, db, espia):
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
 
     login_panel(client)
-    agenda = client.get("/panel")
-    assert "Viajes abiertos en la bolsa" in agenda.text
-    assert "Carlos Vega" in agenda.text
+    bolsa = client.get("/panel/bolsa")
+    assert "Bolsa de viajes" in bolsa.text
+    assert "Carlos Vega" in bolsa.text
 
     r = client.post(f"/panel/solicitudes/{solicitud.id}/aceptar", follow_redirects=False)
     assert r.status_code == 303
@@ -101,9 +117,34 @@ def test_toggle_bolsa_oculta_solicitudes(client, db):
     publicar_viaje(client)
     login_panel(client)
     client.post("/panel/bolsa")  # desactivar
-    agenda = client.get("/panel")
-    assert "Viajes abiertos en la bolsa" not in agenda.text
-    assert "Bolsa de viajes: desactivada" in agenda.text
+    bolsa = client.get("/panel/bolsa")
+    assert "Carlos Vega" not in bolsa.text
+    assert "bolsa desactivada" in bolsa.text
+
+
+def test_viaje_exige_registro(client):
+    r = client.get("/viaje", follow_redirects=False)
+    assert r.status_code == 303 and "/usuario/login" in r.headers["location"]
+    r = client.post("/viaje", data={
+        "origen": "A", "destino": "B", "fecha_hora": fecha_recogida(),
+        "nombre": "X", "telefono": "600000000"}, follow_redirects=False)
+    assert r.status_code == 303 and "/usuario/login" in r.headers["location"]
+
+
+def test_bolsa_ordenada_por_cercania(client, db):
+    publicar_viaje(client)
+    publicar_viaje(client, origen="Otro origen lejano", destino="Destino 2")
+    login_panel(client)
+    from app.models import SolicitudViaje
+    from sqlalchemy import select as _select
+
+    primera = db.execute(_select(SolicitudViaje)).scalars().first()
+    bolsa = client.get(
+        f"/panel/bolsa?lat={primera.origen_lat}&lng={primera.origen_lng}")
+    assert "km de ti" in bolsa.text
+    assert "Ordenado por cercanía" in bolsa.text
+    # La más cercana (distancia 0) aparece primero
+    assert bolsa.text.find("a 0.0 km de ti") < bolsa.text.find("Destino 2") or         bolsa.text.index("km de ti") < bolsa.text.index("Destino 2")
 
 
 def test_cancelar_solicitud(client, db):
@@ -113,7 +154,7 @@ def test_cancelar_solicitud(client, db):
     assert db.execute(select(SolicitudViaje)).scalar_one().estado == "cancelada"
     # Ya no aparece en la bolsa del panel
     login_panel(client)
-    assert "Carlos Vega" not in client.get("/panel").text
+    assert "Carlos Vega" not in client.get("/panel/bolsa").text
 
 
 def test_geocode_global(client):

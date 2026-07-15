@@ -90,6 +90,37 @@
       });
       input.addEventListener('blur', function () { setTimeout(limpiar, 150); });
     });
+
+    /* «Usar mi ubicación» rellena el origen con la dirección inversa */
+    var boton = document.getElementById('usar-ubicacion');
+    if (boton && navigator.geolocation) {
+      boton.addEventListener('click', function () {
+        boton.disabled = true;
+        boton.textContent = 'Buscando tu posición…';
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          var lat = pos.coords.latitude, lng = pos.coords.longitude;
+          fetch('/api/reverse?lat=' + lat + '&lng=' + lng)
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              var input = document.getElementById('origen');
+              input.value = d.texto || (lat.toFixed(5) + ', ' + lng.toFixed(5));
+              document.getElementById('origen_lat').value = d.lat || lat;
+              document.getElementById('origen_lng').value = d.lng || lng;
+              pintar('origen', d.lat || lat, d.lng || lng);
+              boton.textContent = '📍 Ubicación fijada';
+            })
+            .catch(function () {
+              boton.disabled = false;
+              boton.textContent = '📍 Usar mi ubicación actual';
+            });
+        }, function () {
+          boton.disabled = false;
+          boton.textContent = '📍 No pudimos obtener tu posición — inténtalo de nuevo';
+        });
+      });
+    } else if (boton) {
+      boton.hidden = true;
+    }
   }
 
   /* ---- Página de la oferta (ruta pintada) ---- */
@@ -105,7 +136,7 @@
 
     var limites;
     if (info.ruta && info.ruta.length > 1) {
-      var linea = L.polyline(info.ruta, { color: '#09090b', weight: 5, opacity: .85 }).addTo(mapa);
+      var linea = L.polyline(info.ruta, { color: '#c8102e', weight: 5, opacity: .85 }).addTo(mapa);
       limites = linea.getBounds();
     } else {
       limites = L.latLngBounds([info.origen, info.destino]);

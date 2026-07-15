@@ -40,10 +40,13 @@ def _lugar(texto, lat, lng) -> Lugar | None:
 
 @router.get("/viaje", response_class=HTMLResponse)
 def viaje_form(request: Request, db: Session = Depends(get_db)):
+    usuario = usuario_sesion(request, db)
+    if usuario is None:
+        return RedirectResponse("/usuario/login?para=viaje", status_code=303)
     return templates.TemplateResponse(
         request,
         "viaje_form.html",
-        {"valores": {}, "error": None, "usuario": usuario_sesion(request, db)},
+        {"valores": {}, "error": None, "usuario": usuario},
     )
 
 
@@ -66,6 +69,9 @@ def viaje_solicitar(
 ):
     limitar_por_ip(request)
     comprobar_honeypot(website)
+    usuario = usuario_sesion(request, db)
+    if usuario is None:
+        return RedirectResponse("/usuario/login?para=viaje", status_code=303)
     geocoder, rutas = provs
     valores = {
         "origen": origen, "destino": destino, "fecha_hora": fecha_hora,

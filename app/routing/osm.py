@@ -65,6 +65,25 @@ class NominatimGeocoder:
         self._cache[clave] = (time.monotonic(), lugares)
         return lugares
 
+    def invertir(self, lat: float, lng: float) -> Lugar | None:
+        resp = httpx.get(
+            f"{self.base_url}/reverse",
+            params={
+                "lat": lat,
+                "lon": lng,
+                "format": "jsonv2",
+                "accept-language": "es",
+                "zoom": 18,
+            },
+            headers={"User-Agent": self.user_agent},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        datos = resp.json()
+        if "display_name" not in datos:
+            return None
+        return Lugar(texto=datos["display_name"], lat=lat, lng=lng)
+
 
 class OSRMRouteProvider:
     def __init__(self, base_url: str):

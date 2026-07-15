@@ -74,6 +74,22 @@ def geocode_global(q: str, request: Request, provs=Depends(proveedores)):
     }
 
 
+@router.get("/reverse")
+def reverse_geocode(lat: float, lng: float, request: Request, provs=Depends(proveedores)):
+    """Dirección aproximada para el botón «usar mi ubicación»."""
+    limitar_por_ip(request)
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        raise HTTPException(422, "Coordenadas no válidas")
+    geocoder, _ = provs
+    try:
+        lugar = geocoder.invertir(lat, lng)
+    except Exception:
+        lugar = None
+    if lugar is None:
+        return {}
+    return {"texto": lugar.texto, "lat": lugar.lat, "lng": lugar.lng}
+
+
 @router.get("/t/{slug}/geocode")
 def geocode(
     q: str,

@@ -50,6 +50,18 @@ class GoogleGeocoder:
             for r in datos.get("results", [])[:5]
         ]
 
+    def invertir(self, lat: float, lng: float) -> Lugar | None:
+        resp = httpx.get(
+            _GEOCODE_URL,
+            params={"latlng": f"{lat},{lng}", "key": self.api_key, "language": "es"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        resultados = resp.json().get("results", [])
+        if not resultados:
+            return None
+        return Lugar(texto=resultados[0]["formatted_address"], lat=lat, lng=lng)
+
 
 class GoogleRouteProvider:
     def __init__(self, api_key: str):

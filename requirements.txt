@@ -8,9 +8,9 @@ python-multipart>=0.0.9
 itsdangerous>=2.1
 segno>=1.6
 pywebpush>=2.0
+psycopg[binary]>=3.1
 
 # Producción (opcionales en desarrollo):
-# psycopg[binary]>=3.1     # PostgreSQL
 # weasyprint>=60           # PDF del justificante (requiere pango/cairo del sistema)
 # redis>=5                 # rate limiting multi-worker (fase 2)
 

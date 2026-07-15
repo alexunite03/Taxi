@@ -53,7 +53,17 @@ del servicio.
   la plataforma a la intermediación (el resto es marca blanca por taxista);
   revisar su encaje antes del lanzamiento comercial.
 - **Autocompletado y mapas**: Leaflet servido en local (sin CDN), sugerencias
-  de direcciones al escribir y ruta dibujada en la oferta.
+  de direcciones al escribir, botón «usar mi ubicación» (geolocalización +
+  geocodificación inversa) y ruta dibujada en la oferta.
+- **Perfiles de taxista**: foto, presentación y valoraciones de pasajeros
+  (1–5 estrellas tras servicio completado, una por reserva). Buscador
+  público en /taxistas y perfil en /t/{slug}/perfil. El taxista edita su
+  perfil desde el panel.
+- **Bolsa con cercanía**: sección propia del panel (/panel/bolsa) con botón
+  de geolocalización para ordenar las solicitudes por distancia a la
+  recogida. Publicar un viaje exige cuenta de pasajero.
+- **PostgreSQL de serie**: driver psycopg incluido, URLs `postgres://` de
+  Render/Heroku normalizadas automáticamente y `pool_pre_ping` activado.
 
 ## Arranque rápido
 
@@ -70,7 +80,7 @@ Tests: `.venv/bin/python -m pytest`
 
 | Variable | Por defecto | Uso |
 |---|---|---|
-| `TAXI_DATABASE_URL` | SQLite en `var/` | PostgreSQL en producción |
+| `TAXI_DATABASE_URL` | SQLite en `var/` | pega la URL de PostgreSQL tal cual (acepta `postgres://…`) |
 | `TAXI_ROUTE_PROVIDER` | `fake` | `google` para Geocoding + Routes reales |
 | `TAXI_GOOGLE_MAPS_API_KEY` | — | obligatoria con `google` |
 | `TAXI_SECRET_KEY` | insegura | cámbiala en producción |

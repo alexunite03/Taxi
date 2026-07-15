@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Mi perfil — {{ tenant.nombre }}{% endblock %}
+{% block contenido %}
+<nav class="panel-nav" aria-label="Secciones del panel">
+  <a href="/panel">Agenda</a>
+  <a href="/panel/bolsa">Bolsa de viajes</a>
+  <a href="/panel/perfil" aria-current="page">Mi perfil</a>
+</nav>
+
+<h1>Mi perfil público</h1>
+<p class="sub">Así te ven los pasajeros en <a href="/t/{{ tenant.slug }}/perfil">/t/{{ tenant.slug }}/perfil</a></p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<div class="perfil-cabecera">
+  <img class="avatar avatar-grande" src="/t/{{ tenant.slug }}/foto" alt="Tu foto actual"
+       width="96" height="96">
+  <div>
+    <strong>{{ tenant.nombre }}</strong> · Licencia {{ tenant.num_licencia }}<br>
+    {% if media %}<span class="estrellas">★ {{ media }}</span>
+    <span class="ayuda-inline">({{ total }} valoraciones)</span>
+    {% else %}<span class="ayuda-inline">Sin valoraciones todavía</span>{% endif %}
+  </div>
+</div>
+
+<form method="post" action="/panel/perfil" enctype="multipart/form-data">
+  <div class="campo">
+    <label for="foto">Foto <span class="ayuda-inline">(JPG o PNG, máx. 2 MB)</span></label>
+    <input type="file" id="foto" name="foto" accept="image/jpeg,image/png">
+  </div>
+  <div class="campo">
+    <label for="bio">Presentación <span class="ayuda-inline">(máx. 500 caracteres)</span></label>
+    <textarea id="bio" name="bio" rows="4" maxlength="500"
+      placeholder="Ej.: 20 años al volante en Madrid. Coche eléctrico, sillita infantil disponible, inglés básico.">{{ tenant.bio }}</textarea>
+  </div>
+  <button type="submit" class="principal">Guardar perfil</button>
+</form>
+{% endblock %}

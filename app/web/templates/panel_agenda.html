@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block titulo %}Agenda — {{ tenant.nombre }}{% endblock %}
 {% block contenido %}
+<nav class="panel-nav" aria-label="Secciones del panel">
+  <a href="/panel" aria-current="page">Agenda</a>
+  <a href="/panel/bolsa">Bolsa de viajes</a>
+  <a href="/panel/perfil">Mi perfil</a>
+</nav>
 <header class="panel-cabecera">
   <h1>Agenda · {{ tenant.nombre }}</h1>
   <form method="post" action="/panel/logout"><button type="submit" class="secundario">Salir</button></form>
@@ -13,33 +18,7 @@
     </button>
   </form>
   <a class="secundario" href="/panel/qr">Descargar QR de reservas</a>
-  <form method="post" action="/panel/bolsa">
-    <button type="submit" class="secundario">
-      Bolsa de viajes: {{ 'recibiendo solicitudes' if tenant.disponible_bolsa else 'desactivada' }}
-    </button>
-  </form>
 </section>
-
-{% if tenant.disponible_bolsa %}
-<section aria-labelledby="titulo-bolsa">
-  <h2 id="titulo-bolsa">Viajes abiertos en la bolsa</h2>
-  {% if not solicitudes %}<p class="ayuda">Ahora mismo no hay solicitudes abiertas.</p>{% endif %}
-  <ul class="lista-reservas">
-    {% for s in solicitudes %}
-    <li class="reserva">
-      <strong>{{ s.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong>
-      · {{ s.origen_texto }} → {{ s.destino_texto }}<br>
-      Estimado: <strong>{{ s.precio_estimado }} €</strong> · {{ s.nombre }}
-      <div class="acciones">
-        <form method="post" action="/panel/solicitudes/{{ s.id }}/aceptar">
-          <button type="submit" class="principal" style="width:auto">Aceptar viaje</button>
-        </form>
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
-</section>
-{% endif %}
 
 <section aria-labelledby="titulo-asistida">
   <h2 id="titulo-asistida">Reserva telefónica asistida</h2>

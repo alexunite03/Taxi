@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Buscar taxista{% endblock %}
+{% block contenido %}
+<h1>Encuentra tu taxista</h1>
+<p class="sub">Todos son titulares de licencia del A.P.C. de Madrid y trabajan
+con precio cerrado oficial.</p>
+
+<form method="get" action="/taxistas" class="buscador">
+  <label for="q" class="visualmente-oculto">Buscar por nombre</label>
+  <input type="search" id="q" name="q" value="{{ q }}" placeholder="Busca por nombre…">
+  <button type="submit" class="principal" style="width:auto">Buscar</button>
+</form>
+
+{% if not tarjetas %}
+<p>No hay taxistas que coincidan con «{{ q }}».</p>
+{% endif %}
+
+<ul class="lista-reservas">
+  {% for t in tarjetas %}
+  <li class="reserva tarjeta-taxista">
+    <img class="avatar" src="/t/{{ t.tenant.slug }}/foto" alt="" width="64" height="64">
+    <div class="tarjeta-taxista-datos">
+      <strong>{{ t.tenant.nombre }}</strong> · Licencia {{ t.tenant.num_licencia }}<br>
+      {% if t.media %}
+      <span class="estrellas" aria-label="{{ t.media }} sobre 5">★ {{ t.media }}</span>
+      <span class="ayuda-inline">({{ t.total }} valoraciones)</span>
+      {% else %}<span class="ayuda-inline">Sin valoraciones todavía</span>{% endif %}
+      <div class="acciones">
+        <a class="principal" style="width:auto" href="/t/{{ t.tenant.slug }}">Reservar</a>
+        <a class="secundario" href="/t/{{ t.tenant.slug }}/perfil">Ver perfil</a>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}
