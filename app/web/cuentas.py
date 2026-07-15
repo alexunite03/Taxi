@@ -219,6 +219,11 @@ def mis_reservas(request: Request, db: Session = Depends(get_db)):
         .scalars()
         .all()
     )
+    from app.web.bolsa import favoritos_de
+
     return templates.TemplateResponse(
-        request, "mis_reservas.html", {"usuario": usuario, "reservas": reservas}
+        request,
+        "mis_reservas.html",
+        {"usuario": usuario, "reservas": reservas,
+         "favoritos": favoritos_de(db, usuario)},
     )

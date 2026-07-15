@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block titulo %}Tu precio cerrado — {{ tenant.nombre }}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/static/leaflet/leaflet.css">
 {% endblock %}
 
 {% block cuerpo %}
@@ -81,7 +81,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/leaflet/leaflet.js"></script>
 <script src="/static/reserva.js"></script>
 <script>TaxiReserva.initOferta();</script>
 {% endblock %}

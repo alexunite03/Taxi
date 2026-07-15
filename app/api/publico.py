@@ -55,6 +55,25 @@ class ReservaIn(BaseModel):
     website: str | None = None  # honeypot
 
 
+@router.get("/geocode")
+def geocode_global(q: str, request: Request, provs=Depends(proveedores)):
+    """Autocompletar para la bolsa de viajes (sin tenant)."""
+    limitar_por_ip(request)
+    q = q.strip()
+    if len(q) < 3:
+        return {"opciones": []}
+    geocoder, _ = provs
+    try:
+        lugares = geocoder.geocodificar(q)
+    except Exception:
+        return {"opciones": []}
+    return {
+        "opciones": [
+            {"texto": l.texto, "lat": l.lat, "lng": l.lng} for l in lugares[:5]
+        ]
+    }
+
+
 @router.get("/t/{slug}/geocode")
 def geocode(
     q: str,

@@ -29,7 +29,7 @@
   }
 
   /* ---- Página del formulario ---- */
-  function initFormulario(slug) {
+  function initFormulario(geocodeUrl) {
     var mapa = crearMapa('mapa');
     var marcadores = { origen: null, destino: null };
 
@@ -60,7 +60,7 @@
       function buscar() {
         var q = input.value.trim();
         if (q.length < 3) { limpiar(); return; }
-        fetch('/api/t/' + slug + '/geocode?q=' + encodeURIComponent(q))
+        fetch(geocodeUrl + '?q=' + encodeURIComponent(q))
           .then(function (r) { return r.json(); })
           .then(function (d) {
             limpiar();

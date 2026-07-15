@@ -59,9 +59,20 @@ def _proveedor() -> dict:
 
 
 @router.get("/t/{slug}", response_class=HTMLResponse)
-def formulario(request: Request, tenant: Tenant = Depends(tenant_por_slug)):
+def formulario(
+    request: Request,
+    tenant: Tenant = Depends(tenant_por_slug),
+    db: Session = Depends(get_db),
+):
+    from app.web.bolsa import es_favorito
+    from app.web.cuentas import usuario_sesion
+
+    usuario = usuario_sesion(request, db)
     return templates.TemplateResponse(
-        request, "t_form.html", {"tenant": tenant, "valores": {}, "error": None}
+        request,
+        "t_form.html",
+        {"tenant": tenant, "valores": {}, "error": None,
+         "usuario": usuario, "es_favorito": es_favorito(db, usuario, tenant)},
     )
 
 

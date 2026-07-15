@@ -13,6 +13,7 @@ from app.config import settings
 from app.db import get_db
 from app.models import Justificante, Reserva, Tenant
 from app.security import verify_password
+from app.services.bolsa import ErrorBolsa, aceptar_solicitud, solicitudes_abiertas
 from app.services.cotizaciones import DecisionPeajeRequerida, ErrorCotizacion, crear_cotizacion
 from app.services.notificaciones import notificar_cancelacion, notificar_confirmacion
 from app.services.reservas import ErrorReserva, aceptar_reserva
@@ -76,10 +77,12 @@ def agenda(
         .scalars()
         .all()
     )
+    abiertas = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
     return templates.TemplateResponse(
         request,
         "panel_agenda.html",
-        {"tenant": tenant, "reservas": reservas, "oferta": None, "error": None},
+        {"tenant": tenant, "reservas": reservas, "oferta": None, "error": None,
+         "solicitudes": abiertas},
     )
 
 
@@ -116,10 +119,12 @@ def cotizar_asistida(
             .order_by(Reserva.creada_en.desc()).limit(100)
         ).scalars().all()
     )
+    abiertas = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
     return templates.TemplateResponse(
         request,
         "panel_agenda.html",
-        {"tenant": tenant, "reservas": reservas, "oferta": cot, "error": error},
+        {"tenant": tenant, "reservas": reservas, "oferta": cot, "error": error,
+         "solicitudes": abiertas},
     )
 
 
@@ -207,3 +212,32 @@ def descargar_justificante(
     if j.pdf_path:
         return FileResponse(j.pdf_path, media_type="application/pdf")
     return FileResponse(j.html_path, media_type="text/html")
+
+
+@router.post("/bolsa")
+def toggle_bolsa(
+    tenant: Tenant = Depends(tenant_sesion), db: Session = Depends(get_db)
+):
+    tenant.disponible_bolsa = not tenant.disponible_bolsa
+    db.add(tenant)
+    db.commit()
+    return RedirectResponse("/panel", status_code=303)
+
+
+@router.post("/solicitudes/{solicitud_id}/aceptar")
+def aceptar_viaje(
+    solicitud_id: uuid.UUID,
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+    provs=Depends(proveedores),
+    sender=Depends(email_sender),
+):
+    geocoder, rutas = provs
+    try:
+        solicitud, reserva = aceptar_solicitud(db, tenant, solicitud_id, geocoder, rutas)
+    except (ErrorBolsa, ErrorCotizacion, ErrorReserva) as e:
+        raise HTTPException(422, str(e))
+    from app.services.notificaciones import notificar_confirmacion
+
+    notificar_confirmacion(db, sender, reserva)
+    return RedirectResponse("/panel", status_code=303)

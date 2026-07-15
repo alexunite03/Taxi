@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Tu solicitud de viaje{% endblock %}
+{% block extra_head %}
+{% if solicitud.estado == 'abierta' %}<meta http-equiv="refresh" content="20">{% endif %}
+{% endblock %}
+{% block contenido %}
+<h1>Tu solicitud de viaje</h1>
+
+{% if solicitud.estado == 'abierta' %}
+<p class="aviso" role="status">Buscando taxista disponible… Esta página se
+actualiza sola. Guarda el enlace para volver cuando quieras.</p>
+{% elif solicitud.estado == 'cancelada' %}
+<p class="error">Solicitud cancelada.</p>
+{% endif %}
+
+<div class="tarjeta-precio">
+  <div class="meta">Precio cerrado estimado · IVA incluido</div>
+  <div class="importe">{{ solicitud.precio_estimado }} €</div>
+  <div class="meta">{{ solicitud.fecha_hora_recogida.strftime('%d/%m/%Y') }} a las
+    {{ solicitud.fecha_hora_recogida.strftime('%H:%M') }}</div>
+</div>
+
+<div class="linea-viaje">
+  <span class="punto" aria-hidden="true"></span>
+  <span>{{ solicitud.origen_texto }}</span>
+  <span class="punto cuadrado" aria-hidden="true"></span>
+  <span>{{ solicitud.destino_texto }}</span>
+</div>
+
+{% if solicitud.estado == 'abierta' %}
+<form method="post" action="/s/{{ solicitud.token_publico }}/cancelar"
+      onsubmit="return confirm('¿Cancelar la solicitud?')">
+  <button type="submit" class="peligro">Cancelar solicitud</button>
+</form>
+{% endif %}
+{% endblock %}

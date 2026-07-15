@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block titulo %}Reserva tu taxi — {{ tenant.nombre }}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/static/leaflet/leaflet.css">
 {% endblock %}
 
 {% block cuerpo %}
@@ -12,6 +12,14 @@
     <h1>¿A dónde vas?</h1>
     <p class="sub">Precio cerrado por adelantado · {{ tenant.nombre }} ·
     Licencia {{ tenant.num_licencia }} · A.P.C. de Madrid</p>
+
+    {% if usuario %}
+    <form method="post" action="/favoritos/{{ tenant.slug }}" style="margin:.5rem 0">
+      <button type="submit" class="secundario" style="min-height:44px;width:auto">
+        {{ '★ Quitar de favoritos' if es_favorito else '☆ Guardar taxista en favoritos' }}
+      </button>
+    </form>
+    {% endif %}
 
     {% if error %}
     <p class="error" role="alert">{{ error }}</p>
@@ -80,7 +88,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/leaflet/leaflet.js"></script>
 <script src="/static/reserva.js"></script>
-<script>TaxiReserva.initFormulario({{ tenant.slug | tojson }});</script>
+<script>TaxiReserva.initFormulario('/api/t/{{ tenant.slug }}/geocode');</script>
 {% endblock %}

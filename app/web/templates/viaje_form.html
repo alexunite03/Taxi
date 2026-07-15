@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block titulo %}Buscar taxista disponible{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/leaflet/leaflet.css">
+{% endblock %}
+
+{% block cuerpo %}
+<div class="reserva-layout">
+  <div id="mapa" class="mapa" role="presentation"></div>
+
+  <section class="panel-reserva" aria-label="Solicitud de viaje">
+    <h1>Busca un taxista disponible</h1>
+    <p class="sub">Publica tu viaje con precio cerrado estimado y el primer
+    taxista disponible que lo acepte se lo queda. Te avisamos con el
+    justificante en cuanto lo tengas.</p>
+
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+    <form method="post" action="/viaje" novalidate>
+      <div class="campo">
+        <label for="origen">Recogida</label>
+        <input type="text" id="origen" name="origen" required minlength="3"
+               autocomplete="off" value="{{ valores.origen or '' }}"
+               placeholder="Calle y número, municipio">
+        <ul class="sugerencias" id="origen-sugerencias" role="listbox"></ul>
+        <input type="hidden" id="origen_lat" name="origen_lat">
+        <input type="hidden" id="origen_lng" name="origen_lng">
+      </div>
+
+      <div class="campo">
+        <label for="destino">Destino</label>
+        <input type="text" id="destino" name="destino" required minlength="3"
+               autocomplete="off" value="{{ valores.destino or '' }}"
+               placeholder="¿A dónde vas?">
+        <ul class="sugerencias" id="destino-sugerencias" role="listbox"></ul>
+        <input type="hidden" id="destino_lat" name="destino_lat">
+        <input type="hidden" id="destino_lng" name="destino_lng">
+      </div>
+
+      <div class="campo">
+        <label for="fecha_hora">Fecha y hora de recogida</label>
+        <input type="datetime-local" id="fecha_hora" name="fecha_hora" required
+               value="{{ valores.fecha_hora or '' }}">
+        <p class="ayuda">Antelación mínima: 30 minutos.</p>
+      </div>
+
+      <div class="campo">
+        <label for="nombre">Tu nombre</label>
+        <input type="text" id="nombre" name="nombre" required minlength="2"
+               autocomplete="name" value="{{ valores.nombre or (usuario.nombre if usuario else '') }}">
+      </div>
+      <div class="campo">
+        <label for="telefono">Teléfono</label>
+        <input type="tel" id="telefono" name="telefono" required minlength="9"
+               autocomplete="tel" value="{{ valores.telefono or (usuario.telefono if usuario else '') }}">
+      </div>
+      <div class="campo">
+        <label for="email">Email <span class="ayuda-inline">(recomendado)</span></label>
+        <input type="email" id="email" name="email" autocomplete="email"
+               value="{{ valores.email or (usuario.email if usuario else '') }}">
+      </div>
+
+      <div class="visualmente-oculto" aria-hidden="true">
+        <label for="website">No rellenes este campo</label>
+        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+
+      <button type="submit" class="principal">Publicar mi viaje</button>
+    </form>
+
+    <p class="rgpd">Tus datos se usan para gestionar esta solicitud y se
+    comparten únicamente con el taxista que la acepte, que pasa a ser el
+    responsable del servicio. Conservación: plazos legales (4 años).</p>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/leaflet/leaflet.js"></script>
+<script src="/static/reserva.js"></script>
+<script>TaxiReserva.initFormulario('/api/geocode');</script>
+{% endblock %}

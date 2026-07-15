@@ -9,6 +9,27 @@
 </header>
 <p class="sub">{{ usuario.nombre }} · {{ usuario.telefono }}</p>
 
+{% if favoritos %}
+<section aria-labelledby="titulo-favoritos">
+  <h2 id="titulo-favoritos">Mis taxistas</h2>
+  <ul class="lista-reservas">
+    {% for f in favoritos %}
+    <li class="reserva">
+      <strong>{{ f.tenant.nombre }}</strong> · Licencia {{ f.tenant.num_licencia }}
+      <div class="acciones">
+        <a class="principal" style="width:auto" href="/t/{{ f.tenant.slug }}">Reservar</a>
+        <form method="post" action="/favoritos/{{ f.tenant.slug }}">
+          <button type="submit" class="secundario">Quitar</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<p><a class="secundario" href="/viaje">Buscar taxista disponible para un viaje</a></p>
+
 {% if not reservas %}
 <p>Todavía no tienes reservas asociadas al teléfono {{ usuario.telefono }}.
 Reserva desde el enlace o QR de tu taxista y aparecerán aquí.</p>

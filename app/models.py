@@ -52,6 +52,7 @@ class Tenant(Base):
 
     sms_activado: Mapped[bool] = mapped_column(Boolean, default=False)
     flag_contaminacion: Mapped[bool] = mapped_column(Boolean, default=False)
+    disponible_bolsa: Mapped[bool] = mapped_column(Boolean, default=True)
 
     estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -105,7 +106,7 @@ class Cotizacion(Base):
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
-CANALES = ("web", "telefono_asistida", "telegram")
+CANALES = ("web", "telefono_asistida", "telegram", "bolsa")
 ESTADOS_RESERVA = ("aceptada", "recordada", "completada", "cancelada")
 
 
@@ -224,3 +225,54 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(120), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Favorito(Base):
+    """Taxistas guardados por un pasajero registrado."""
+
+    __tablename__ = "favoritos"
+    __table_args__ = (UniqueConstraint("usuario_id", "tenant_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    tenant: Mapped[Tenant] = relationship()
+
+
+class SolicitudViaje(Base):
+    """Bolsa de viajes: el pasajero publica un trayecto y los taxistas
+    disponibles pueden aceptarlo. El primero que acepta se lo lleva y la
+    solicitud se convierte en una reserva normal de su agenda.
+
+    Nota regulatoria: esta pieza acerca la plataforma a la intermediación
+    (el resto del producto es marca blanca por taxista). Revisar su encaje
+    antes del lanzamiento comercial.
+    """
+
+    __tablename__ = "solicitudes_viaje"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    token_publico: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+
+    nombre: Mapped[str] = mapped_column(String(120))
+    telefono: Mapped[str] = mapped_column(String(20))
+    email: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    origen_texto: Mapped[str] = mapped_column(String(255))
+    origen_lat: Mapped[float]
+    origen_lng: Mapped[float]
+    destino_texto: Mapped[str] = mapped_column(String(255))
+    destino_lat: Mapped[float]
+    destino_lng: Mapped[float]
+    fecha_hora_recogida: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    precio_estimado: Mapped[float] = mapped_column(Numeric(7, 2))
+    estado: Mapped[str] = mapped_column(String(15), default="abierta")  # abierta | asignada | cancelada
+    reserva_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("reservas.id"), nullable=True
+    )
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    reserva: Mapped["Reserva | None"] = relationship()
