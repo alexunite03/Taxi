@@ -51,6 +51,37 @@ class ConsoleEmailSender:
         )
 
 
+class SMTPEmailSender:
+    """SMTP clásico (Gmail con contraseña de aplicación, tu hosting, etc.).
+    La vía más rápida para enviar correo real sin dominio propio."""
+
+    def __init__(self, host: str, port: int, usuario: str, password: str, remitente: str):
+        self.host, self.port = host, port
+        self.usuario, self.password = usuario, password
+        self.remitente = remitente
+
+    def enviar(self, email: Email) -> None:
+        import mimetypes
+        import smtplib
+        from email.message import EmailMessage
+
+        m = EmailMessage()
+        m["From"] = self.remitente
+        m["To"] = email.para
+        m["Subject"] = email.asunto
+        m.set_content("Este mensaje se ve mejor en un cliente con HTML.")
+        m.add_alternative(email.html, subtype="html")
+        for a in email.adjuntos:
+            tipo, _ = mimetypes.guess_type(a.nombre)
+            maintype, _, subtype = (tipo or "application/octet-stream").partition("/")
+            m.add_attachment(a.contenido, maintype=maintype, subtype=subtype,
+                             filename=a.nombre)
+        with smtplib.SMTP(self.host, self.port, timeout=20) as servidor:
+            servidor.starttls()
+            servidor.login(self.usuario, self.password)
+            servidor.send_message(m)
+
+
 class ResendEmailSender:
     def __init__(self, api_key: str, remitente: str):
         self.api_key = api_key

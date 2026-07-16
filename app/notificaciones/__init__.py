@@ -1,4 +1,11 @@
-from .email import Adjunto, ConsoleEmailSender, Email, EmailSender, ResendEmailSender
+from .email import (
+    Adjunto,
+    ConsoleEmailSender,
+    Email,
+    EmailSender,
+    ResendEmailSender,
+    SMTPEmailSender,
+)
 from .telegram import BotTelegramSender, ConsoleTelegramSender, TelegramSender
 from .push import (
     ConsolePushSender,
@@ -13,6 +20,15 @@ def crear_email_sender() -> EmailSender:
     """Fábrica según configuración: 'console' (desarrollo) o 'resend'."""
     from app.config import settings
 
+    if settings.email_provider == "smtp":
+        if not (settings.smtp_user and settings.smtp_password):
+            raise RuntimeError(
+                "TAXI_SMTP_USER y TAXI_SMTP_PASSWORD son obligatorios con email_provider=smtp"
+            )
+        return SMTPEmailSender(
+            settings.smtp_host, settings.smtp_port,
+            settings.smtp_user, settings.smtp_password, settings.email_from,
+        )
     if settings.email_provider == "resend":
         if not settings.resend_api_key:
             raise RuntimeError("TAXI_RESEND_API_KEY es obligatoria con email_provider=resend")
@@ -56,6 +72,7 @@ __all__ = [
     "MensajePush",
     "PushSender",
     "ResendEmailSender",
+    "SMTPEmailSender",
     "SuscripcionCaducada",
     "WebPushSender",
     "BotTelegramSender",

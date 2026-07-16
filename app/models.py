@@ -66,6 +66,8 @@ class Tenant(Base):
 
     # Avisos por Telegram (chat con el bot de la plataforma)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Código de un solo uso para vincular el chat con /start <código>
+    telegram_codigo: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
     config: Mapped[dict] = mapped_column(JSON, default=dict)

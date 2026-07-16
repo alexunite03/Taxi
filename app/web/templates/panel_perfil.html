@@ -45,12 +45,24 @@
     <p class="ayuda">Entre 0 y 5,00 € (máximo reglamentario para servicios concertados).</p>
   </div>
   <div class="campo">
-    <label for="telegram_chat_id">Avisos por Telegram <span class="ayuda-inline">(opcional)</span></label>
+    <label for="telegram_chat_id">Avisos por Telegram</label>
+    {% if tenant.telegram_chat_id %}
+    <p class="badge-verde" style="margin:.25rem 0">✅ Telegram vinculado.
+    Recibes cada reserva y los viajes de la bolsa al instante.
+    Borra el campo y guarda para desvincular.</p>
+    {% elif telegram_bot %}
+    <p style="margin:.25rem 0">
+      <a class="principal" style="width:auto"
+         href="https://t.me/{{ telegram_bot }}?start={{ tenant.telegram_codigo }}"
+         target="_blank" rel="noopener">Vincular Telegram con un toque</a>
+    </p>
+    <p class="ayuda">Se abre el chat con nuestro bot; pulsa «Iniciar» y listo.</p>
+    {% else %}
+    <p class="ayuda">El bot de Telegram aún no está configurado en esta
+    instalación. Si tienes tu chat ID puedes pegarlo aquí:</p>
+    {% endif %}
     <input type="text" id="telegram_chat_id" name="telegram_chat_id" inputmode="numeric"
-           value="{{ tenant.telegram_chat_id or '' }}" placeholder="Tu chat ID">
-    <p class="ayuda">Habla con el bot de la plataforma en Telegram, pídele
-    /id y pega aquí el número. Recibirás cada reserva y los viajes nuevos de
-    la bolsa al instante.</p>
+           value="{{ tenant.telegram_chat_id or '' }}" placeholder="Chat ID (avanzado)">
   </div>
   <div class="campo">
     <label for="bio">Presentación <span class="ayuda-inline">(máx. 500 caracteres)</span></label>

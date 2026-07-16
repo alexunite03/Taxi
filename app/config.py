@@ -24,10 +24,15 @@ class Settings(BaseSettings):
     # Caducidad de la cotización (plan §3): 15 minutos
     cotizacion_ttl_min: int = 15
 
-    # Email transaccional (plan §5): console (desarrollo) | resend
+    # Email transaccional (plan §5): console (desarrollo) | resend | smtp
     email_provider: str = "console"
     resend_api_key: str = ""
     email_from: str = "Reservas <reservas@example.com>"
+    # SMTP (p. ej. Gmail con contraseña de aplicación) — la vía más rápida
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
 
     # Web Push (plan §5): console (desarrollo) | webpush
     # Claves con `python -m app.jobs generar-vapid`
@@ -39,6 +44,8 @@ class Settings(BaseSettings):
     # Avisos al taxista por Telegram: console (desarrollo) | telegram
     telegram_provider: str = "console"
     telegram_bot_token: str = ""
+    telegram_bot_username: str = ""      # sin @, para el enlace t.me de vinculación
+    telegram_webhook_secret: str = ""    # valida los updates entrantes del bot
 
     # Recordatorio previo a la recogida (minutos antes)
     recordatorio_min: int = 30

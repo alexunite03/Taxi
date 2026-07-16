@@ -104,6 +104,36 @@ Tests: `.venv/bin/python -m pytest`
 El proveedor `fake` geocodifica y enruta de forma determinista (sin red):
 todo el flujo funciona en local sin API key.
 
+## Activar el correo real (5 minutos, con Gmail)
+
+1. En tu cuenta de Google: Seguridad → Verificación en dos pasos (actívala)
+   → Contraseñas de aplicaciones → crea una para «Correo».
+2. Variables de entorno:
+   - `TAXI_EMAIL_PROVIDER=smtp`
+   - `TAXI_SMTP_USER=tucuenta@gmail.com`
+   - `TAXI_SMTP_PASSWORD=<la contraseña de aplicación>`
+   - `TAXI_EMAIL_FROM=Reservas <tucuenta@gmail.com>`
+3. Redespliega. Confirmaciones, cancelaciones, recordatorios y avisos al
+   taxista salen por Gmail (límite ~500/día; para volumen, pasa a `resend`
+   con dominio propio).
+
+## Activar Telegram (10 minutos)
+
+1. En Telegram, habla con **@BotFather** → `/newbot` → elige nombre y
+   usuario (p. ej. `taximad_bot`). Te da el **token**.
+2. Variables de entorno:
+   - `TAXI_TELEGRAM_PROVIDER=telegram`
+   - `TAXI_TELEGRAM_BOT_TOKEN=<token de BotFather>`
+   - `TAXI_TELEGRAM_BOT_USERNAME=taximad_bot` (sin @)
+   - `TAXI_TELEGRAM_WEBHOOK_SECRET=<cadena aleatoria>`
+   - `TAXI_BASE_URL` con tu URL pública (https)
+3. Redespliega y registra el webhook una vez:
+   `python -m app.jobs telegram-webhook`
+   (en Render: pestaña Shell del servicio).
+4. Cada taxista pulsa «Vincular Telegram con un toque» en su panel → Mi
+   perfil, y desde ese momento recibe cada reserva y los viajes de la bolsa
+   en su móvil. El bot también responde a `/id` para vincular a mano.
+
 ## Despliegue
 
 **Esto es un servidor Python, no una web estática: Netlify, GitHub Pages o

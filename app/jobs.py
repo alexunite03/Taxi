@@ -42,13 +42,37 @@ def _generar_vapid() -> int:
     return 0
 
 
+def _telegram_webhook() -> int:
+    import httpx
+
+    from .config import settings
+
+    if not settings.telegram_bot_token:
+        print("Falta TAXI_TELEGRAM_BOT_TOKEN", file=sys.stderr)
+        return 2
+    url = f"{settings.base_url}/api/telegram/webhook"
+    cuerpo = {"url": url, "allowed_updates": ["message"]}
+    if settings.telegram_webhook_secret:
+        cuerpo["secret_token"] = settings.telegram_webhook_secret
+    r = httpx.post(
+        f"https://api.telegram.org/bot{settings.telegram_bot_token}/setWebhook",
+        json=cuerpo,
+        timeout=15,
+    )
+    print(f"setWebhook → {url}: {r.status_code} {r.text[:200]}")
+    return 0 if r.is_success else 1
+
+
 def main() -> int:
     orden = sys.argv[1] if len(sys.argv) > 1 else ""
     if orden == "recordatorios":
         return _recordatorios()
     if orden == "generar-vapid":
         return _generar_vapid()
-    print("Uso: python -m app.jobs [recordatorios|generar-vapid]", file=sys.stderr)
+    if orden == "telegram-webhook":
+        return _telegram_webhook()
+    print("Uso: python -m app.jobs [recordatorios|generar-vapid|telegram-webhook]",
+          file=sys.stderr)
     return 2
 
 

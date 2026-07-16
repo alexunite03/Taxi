@@ -240,12 +240,21 @@ def perfil_form(
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
 ):
+    import secrets as _secrets
+
     from app.web.perfiles import resumen_valoraciones
+
+    # Código de vinculación de Telegram listo para el enlace t.me
+    if not tenant.telegram_chat_id and not tenant.telegram_codigo:
+        tenant.telegram_codigo = _secrets.token_urlsafe(8)
+        db.add(tenant)
+        db.commit()
 
     media, total = resumen_valoraciones(db, tenant.id)
     return templates.TemplateResponse(
         request, "panel_perfil.html",
-        {"tenant": tenant, "media": media, "total": total, "error": None},
+        {"tenant": tenant, "media": media, "total": total, "error": None,
+         "telegram_bot": settings.telegram_bot_username},
     )
 
 
@@ -290,7 +299,8 @@ async def perfil_guardar(
         media, total = resumen_valoraciones(db, tenant.id)
         return templates.TemplateResponse(
             request, "panel_perfil.html",
-            {"tenant": tenant, "media": media, "total": total, "error": error},
+            {"tenant": tenant, "media": media, "total": total, "error": error,
+             "telegram_bot": settings.telegram_bot_username},
             status_code=422,
         )
     return RedirectResponse("/panel/perfil", status_code=303)
