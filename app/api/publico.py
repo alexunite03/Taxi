@@ -19,6 +19,7 @@ from app.config import settings
 from app.services.notificaciones import (
     notificar_cancelacion,
     notificar_confirmacion,
+    notificar_taxista_reserva,
     suscribir_push,
 )
 from app.services.reservas import (
@@ -30,6 +31,7 @@ from app.services.reservas import (
 
 from .deps import (
     email_sender,
+    telegram_sender,
     parsear_fecha_recogida,
     proveedores,
     push_sender,
@@ -169,6 +171,7 @@ def reservar(
     tenant: Tenant = Depends(tenant_por_slug),
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
 ):
     limitar_por_ip(request)
     comprobar_honeypot(datos.website)
@@ -179,6 +182,7 @@ def reservar(
     except ErrorReserva as e:
         raise HTTPException(422, str(e))
     notificar_confirmacion(db, sender, reserva)
+    notificar_taxista_reserva(db, sender, telegram, reserva)
     j = reserva.justificante
     return {
         "reserva_token": reserva.token_publico,

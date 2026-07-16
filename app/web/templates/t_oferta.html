@@ -24,6 +24,10 @@
       <span>{{ cot.destino_texto }}</span>
     </div>
 
+    {% if cot.calculo_payload and cot.calculo_payload.descuento_taxista_pct %}
+    <p class="badge-verde">Incluye un {{ cot.calculo_payload.descuento_taxista_pct }} %
+    de descuento de {{ tenant.nombre.split()[0] }}.</p>
+    {% endif %}
     {% if cot.descuento_contaminacion %}
     <p class="badge-verde">Incluye descuento del 10 % por episodio de contaminación.</p>
     {% endif %}

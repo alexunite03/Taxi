@@ -21,7 +21,11 @@ from app.services.cotizaciones import (
     ErrorCotizacion,
     crear_cotizacion,
 )
-from app.services.notificaciones import notificar_cancelacion, notificar_confirmacion
+from app.services.notificaciones import (
+    notificar_cancelacion,
+    notificar_confirmacion,
+    notificar_taxista_reserva,
+)
 from app.services.reservas import (
     ErrorReserva,
     aceptar_reserva,
@@ -31,6 +35,7 @@ from app.services.reservas import (
 
 from app.api.deps import (
     email_sender,
+    telegram_sender,
     parsear_fecha_recogida,
     proveedores,
     push_sender,
@@ -180,6 +185,7 @@ def reservar_web(
     tenant: Tenant = Depends(tenant_por_slug),
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
 ):
     limitar_por_ip(request)
     comprobar_honeypot(website)
@@ -193,6 +199,7 @@ def reservar_web(
             {"tenant": tenant, "valores": {}, "error": str(e)},
         )
     notificar_confirmacion(db, sender, reserva)
+    notificar_taxista_reserva(db, sender, telegram, reserva)
     return RedirectResponse(f"/r/{reserva.token_publico}", status_code=303)
 
 

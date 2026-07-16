@@ -37,11 +37,28 @@ que acepta se lo lleva.</p>
     {% endif %}<br>
     {{ s.origen_texto }} → {{ s.destino_texto }}<br>
     Estimado: <strong>{{ s.precio_estimado }} €</strong> · {{ s.nombre }}
-    <div class="acciones">
-      <form method="post" action="/panel/solicitudes/{{ s.id }}/aceptar">
-        <button type="submit" class="principal" style="width:auto">Aceptar viaje</button>
+    {% if s.intermediario %}· <span class="badge" style="padding:.15rem .5rem">pedido
+    por {{ s.intermediario.nombre }}</span>{% endif %}
+    <details style="margin-top:.5rem">
+      <summary style="cursor:pointer;font-weight:700">Aceptar viaje…</summary>
+      <form method="post" action="/panel/solicitudes/{{ s.id }}/aceptar" class="fila" style="margin-top:.5rem">
+        <div class="campo" style="margin:.25rem 0">
+          <label for="desc-{{ s.id }}">Descuento</label>
+          <select id="desc-{{ s.id }}" name="descuento_pct">
+            {% for pct in [0, 5, 10, 15, 20, 25, 30] %}
+            <option value="{{ pct }}" {{ 'selected' if tenant.descuento_pct == pct }}>
+              {{ 'Sin descuento' if pct == 0 else pct ~ ' %' }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="campo" style="margin:.25rem 0">
+          <label for="rec-{{ s.id }}">Recogida (0–5 €)</label>
+          <input type="number" id="rec-{{ s.id }}" name="recogida_eur" min="0" max="5"
+                 step="0.50" value="{{ tenant.recogida_eur }}">
+        </div>
+        <button type="submit" class="principal" style="width:auto">Confirmar y aceptar</button>
       </form>
-    </div>
+    </details>
   </li>
   {% endfor %}
 </ul>

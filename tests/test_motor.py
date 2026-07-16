@@ -145,3 +145,27 @@ def test_payload_auditable_completo():
 def test_sin_tramos_rechazado():
     with pytest.raises(ValueError):
         precio_cerrado([], dt(2026, 7, 14, 10, 0))
+
+
+def test_recogida_reducida():
+    # Recogida de 2,50 en vez del máximo: 2,55 + 2,50 + 14,00 = 19,05
+    tramos = [Tramo(dist_km=Decimal("10"), tiempo_h=Decimal("10") / Decimal("30"))]
+    r = precio_cerrado(tramos, dt(2026, 7, 14, 10, 0), recogida=Decimal("2.50"))
+    assert r.precio == Decimal("19.05")
+    assert r.payload["importe_recogida"] == "2.50"
+
+
+def test_descuento_del_taxista():
+    # 21,55 con un 10 % de descuento comercial → 19,395 → 19,40
+    tramos = [Tramo(dist_km=Decimal("10"), tiempo_h=Decimal("10") / Decimal("30"))]
+    r = precio_cerrado(tramos, dt(2026, 7, 14, 10, 0), descuento_pct=Decimal("10"))
+    assert r.precio == Decimal("19.40")
+    assert r.payload["descuento_taxista_pct"] == "10"
+
+
+def test_limites_de_recogida_y_descuento():
+    tramos = [Tramo(dist_km=Decimal("10"), tiempo_h=Decimal("10") / Decimal("30"))]
+    with pytest.raises(ValueError):
+        precio_cerrado(tramos, dt(2026, 7, 14, 10, 0), recogida=Decimal("5.50"))
+    with pytest.raises(ValueError):
+        precio_cerrado(tramos, dt(2026, 7, 14, 10, 0), descuento_pct=Decimal("40"))

@@ -11,7 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.antifraude import comprobar_honeypot, limitar_por_ip
-from app.api.deps import parsear_fecha_recogida, proveedores, tenant_por_slug
+from app.api.deps import (
+    email_sender,
+    parsear_fecha_recogida,
+    proveedores,
+    telegram_sender,
+    tenant_por_slug,
+)
 from app.db import get_db
 from app.models import Favorito, Tenant
 from app.routing import Lugar
@@ -66,6 +72,8 @@ def viaje_solicitar(
     website: str | None = Form(None),
     db: Session = Depends(get_db),
     provs=Depends(proveedores),
+    sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
 ):
     limitar_por_ip(request)
     comprobar_honeypot(website)
@@ -92,6 +100,9 @@ def viaje_solicitar(
             {"valores": valores, "error": str(e),
              "usuario": usuario_sesion(request, db)},
         )
+    from app.services.notificaciones import avisar_bolsa_nueva_solicitud
+
+    avisar_bolsa_nueva_solicitud(db, sender, telegram, solicitud)
     return RedirectResponse(f"/s/{solicitud.token_publico}", status_code=303)
 
 

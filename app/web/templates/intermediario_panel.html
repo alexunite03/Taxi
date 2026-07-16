@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block titulo %}Pedir taxi — {{ inter.nombre }}{% endblock %}
+{% block contenido %}
+<header class="panel-cabecera">
+  <h1>{{ inter.nombre }}</h1>
+  <form method="post" action="/intermediario/logout">
+    <button type="submit" class="secundario">Salir</button>
+  </form>
+</header>
+<p class="sub">Pide un taxi con precio cerrado para tu cliente: el primer
+taxista disponible que lo acepte se lo queda.</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<section aria-labelledby="titulo-pedir">
+  <h2 id="titulo-pedir">Pedir taxi para un cliente</h2>
+  <form method="post" action="/intermediario/pedir" class="fila">
+    <div class="campo"><label for="cliente_nombre">Nombre del cliente</label>
+      <input type="text" id="cliente_nombre" name="cliente_nombre" required
+             value="{{ valores.cliente_nombre or '' }}"></div>
+    <div class="campo"><label for="cliente_telefono">Teléfono del cliente</label>
+      <input type="tel" id="cliente_telefono" name="cliente_telefono" required
+             value="{{ valores.cliente_telefono or '' }}"></div>
+    <div class="campo"><label for="origen">Recogida</label>
+      <input type="text" id="origen" name="origen" required
+             value="{{ valores.origen or inter.direccion_texto }}"></div>
+    <div class="campo"><label for="destino">Destino</label>
+      <input type="text" id="destino" name="destino" required
+             value="{{ valores.destino or '' }}"></div>
+    <div class="campo"><label for="fecha_hora">Recogida (fecha y hora)</label>
+      <input type="datetime-local" id="fecha_hora" name="fecha_hora" required
+             value="{{ valores.fecha_hora or '' }}"></div>
+    <button type="submit" class="principal">Pedir taxi</button>
+  </form>
+</section>
+
+<section aria-labelledby="titulo-pedidos">
+  <h2 id="titulo-pedidos">Taxis pedidos</h2>
+  {% if not solicitudes %}<p class="ayuda">Todavía no has pedido ningún taxi.</p>{% endif %}
+  <ul class="lista-reservas">
+    {% for s in solicitudes %}
+    <li class="reserva estado-{{ 'cancelada' if s.estado == 'cancelada' }}">
+      <strong>{{ s.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong>
+      · {{ s.nombre }} · {{ s.origen_texto }} → {{ s.destino_texto }}<br>
+      Estimado {{ s.precio_estimado }} € ·
+      {% if s.estado == 'abierta' %}<em>buscando taxista…</em>
+      {% elif s.estado == 'asignada' and s.reserva %}
+        <span class="estrellas">✓ asignado</span> ·
+        <a href="/r/{{ s.reserva.token_publico }}">Ver reserva y justificante</a>
+      {% else %}<em>{{ s.estado }}</em>{% endif %}
+      · <a href="/s/{{ s.token_publico }}">seguimiento</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

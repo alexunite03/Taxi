@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block titulo %}Registro de intermediario{% endblock %}
+{% block contenido %}
+<h1>Cuenta para hoteles y establecimientos</h1>
+<p class="sub">Pide taxis con precio cerrado para tus clientes: recepciones,
+restaurantes, conserjerías…</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" action="/registro/intermediario" novalidate>
+  <div class="campo">
+    <label for="nombre">Nombre del establecimiento</label>
+    <input type="text" id="nombre" name="nombre" required minlength="3"
+           value="{{ valores.nombre or '' }}" placeholder="Hotel Ejemplo">
+  </div>
+  <div class="campo">
+    <label for="contacto">Persona de contacto <span class="ayuda-inline">(opcional)</span></label>
+    <input type="text" id="contacto" name="contacto" value="{{ valores.contacto or '' }}">
+  </div>
+  <div class="campo">
+    <label for="direccion">Dirección <span class="ayuda-inline">(se usará como recogida por defecto)</span></label>
+    <input type="text" id="direccion" name="direccion" value="{{ valores.direccion or '' }}">
+  </div>
+  <div class="campo">
+    <label for="telefono">Teléfono</label>
+    <input type="tel" id="telefono" name="telefono" required minlength="9"
+           value="{{ valores.telefono or '' }}">
+  </div>
+  <div class="campo">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required autocomplete="username"
+           value="{{ valores.email or '' }}">
+  </div>
+  <div class="campo">
+    <label for="password">Contraseña <span class="ayuda-inline">(mínimo 8 caracteres)</span></label>
+    <input type="password" id="password" name="password" required minlength="8"
+           autocomplete="new-password">
+  </div>
+  <button type="submit" class="principal">Crear cuenta</button>
+</form>
+<p class="ayuda">¿Ya tienes cuenta? <a href="/intermediario/login">Inicia sesión</a>.</p>
+{% endblock %}

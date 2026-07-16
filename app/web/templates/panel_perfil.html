@@ -29,6 +29,30 @@
     <input type="file" id="foto" name="foto" accept="image/jpeg,image/png">
   </div>
   <div class="campo">
+    <label for="descuento_pct">Descuento a tus clientes</label>
+    <select id="descuento_pct" name="descuento_pct">
+      {% for pct in [0, 5, 10, 15, 20, 25, 30] %}
+      <option value="{{ pct }}" {{ 'selected' if tenant.descuento_pct == pct }}>
+        {{ 'Sin descuento' if pct == 0 else pct ~ ' % de descuento' }}</option>
+      {% endfor %}
+    </select>
+    <p class="ayuda">El precio cerrado es un máximo legal: rebajarlo siempre está permitido.</p>
+  </div>
+  <div class="campo">
+    <label for="recogida_eur">Suplemento por desplazamiento de recogida</label>
+    <input type="number" id="recogida_eur" name="recogida_eur" min="0" max="5"
+           step="0.50" value="{{ tenant.recogida_eur }}">
+    <p class="ayuda">Entre 0 y 5,00 € (máximo reglamentario para servicios concertados).</p>
+  </div>
+  <div class="campo">
+    <label for="telegram_chat_id">Avisos por Telegram <span class="ayuda-inline">(opcional)</span></label>
+    <input type="text" id="telegram_chat_id" name="telegram_chat_id" inputmode="numeric"
+           value="{{ tenant.telegram_chat_id or '' }}" placeholder="Tu chat ID">
+    <p class="ayuda">Habla con el bot de la plataforma en Telegram, pídele
+    /id y pega aquí el número. Recibirás cada reserva y los viajes nuevos de
+    la bolsa al instante.</p>
+  </div>
+  <div class="campo">
     <label for="bio">Presentación <span class="ayuda-inline">(máx. 500 caracteres)</span></label>
     <textarea id="bio" name="bio" rows="4" maxlength="500"
       placeholder="Ej.: 20 años al volante en Madrid. Coche eléctrico, sillita infantil disponible, inglés básico.">{{ tenant.bio }}</textarea>

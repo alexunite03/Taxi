@@ -65,6 +65,20 @@ del servicio.
 - **PostgreSQL de serie**: driver psycopg incluido, URLs `postgres://` de
   Render/Heroku normalizadas automáticamente y `pool_pre_ping` activado.
 
+- **Avisos al taxista**: email y Telegram (Bot API gratuito; token global
+  `TAXI_TELEGRAM_BOT_TOKEN`, cada taxista vincula su chat desde el perfil)
+  al recibir una reserva y cuando entra un viaje nuevo en la bolsa.
+- **Política de precios del taxista**: descuento comercial (0–30 %, legal
+  porque el precio cerrado es un máximo) y suplemento de recogida entre 0 y
+  el tope reglamentario de 5,00 €. Se configura en el perfil y puede
+  ajustarse viaje a viaje al aceptar en la bolsa.
+- **QR social**: el QR del taxista lleva a su perfil público (foto,
+  valoraciones y botón de reserva), no directo al formulario.
+- **Cuenta de intermediario** (/registro/intermediario): hoteles y
+  establecimientos piden taxis para sus clientes; sus solicitudes van a la
+  bolsa identificadas con el establecimiento y siguen el estado con enlace
+  al justificante.
+
 ## Arranque rápido
 
 ```bash

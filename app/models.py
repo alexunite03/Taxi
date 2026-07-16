@@ -58,6 +58,15 @@ class Tenant(Base):
     bio: Mapped[str] = mapped_column(String(500), default="")
     foto_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Política de precio del taxista: descuento comercial (el precio cerrado
+    # es un máximo, rebajarlo siempre es legal) y suplemento de recogida
+    # entre 0 y el máximo reglamentario de 5,00 €.
+    descuento_pct: Mapped[int] = mapped_column(Integer, default=0)
+    recogida_eur: Mapped[float] = mapped_column(Numeric(3, 2), default=5.00)
+
+    # Avisos por Telegram (chat con el bot de la plataforma)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     fecha_alta: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
@@ -272,6 +281,10 @@ class SolicitudViaje(Base):
     destino_lng: Mapped[float]
     fecha_hora_recogida: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
+    intermediario_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("intermediarios.id"), nullable=True
+    )
+
     precio_estimado: Mapped[float] = mapped_column(Numeric(7, 2))
     estado: Mapped[str] = mapped_column(String(15), default="abierta")  # abierta | asignada | cancelada
     reserva_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -280,6 +293,7 @@ class SolicitudViaje(Base):
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
     reserva: Mapped["Reserva | None"] = relationship()
+    intermediario: Mapped["Intermediario | None"] = relationship()
 
 
 class Valoracion(Base):
@@ -294,3 +308,21 @@ class Valoracion(Base):
     comentario: Mapped[str] = mapped_column(String(400), default="")
     autor: Mapped[str] = mapped_column(String(120), default="")
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Intermediario(Base):
+    """Cuenta para hoteles, restaurantes y conserjerías que piden taxis
+    para sus clientes a través de la bolsa."""
+
+    __tablename__ = "intermediarios"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    nombre: Mapped[str] = mapped_column(String(120))  # establecimiento
+    contacto: Mapped[str] = mapped_column(String(120), default="")
+    telefono: Mapped[str] = mapped_column(String(20))
+    email: Mapped[str] = mapped_column(String(120), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    direccion_texto: Mapped[str] = mapped_column(String(255), default="")
+    direccion_lat: Mapped[float | None] = mapped_column(nullable=True)
+    direccion_lng: Mapped[float | None] = mapped_column(nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)

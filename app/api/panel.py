@@ -182,13 +182,16 @@ def toggle_contaminacion(
 def qr(tenant: Tenant = Depends(tenant_sesion)):
     import segno
 
-    enlace = f"{settings.base_url}/t/{tenant.slug}"
+    enlace = f"{settings.base_url}/t/{tenant.slug}/perfil"
     buf = io.BytesIO()
     segno.make(enlace, error="q").save(buf, kind="png", scale=10, border=2)
     return Response(
         buf.getvalue(),
         media_type="image/png",
-        headers={"Content-Disposition": f'inline; filename="qr-{tenant.slug}.png"'},
+        headers={
+            "Content-Disposition": f'inline; filename="qr-{tenant.slug}.png"',
+            "X-QR-Target": enlace,
+        },
     )
 
 
@@ -250,6 +253,9 @@ def perfil_form(
 async def perfil_guardar(
     request: Request,
     bio: str = Form(""),
+    descuento_pct: int = Form(0),
+    recogida_eur: float = Form(5.0),
+    telegram_chat_id: str = Form(""),
     foto: UploadFile | None = None,
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
@@ -258,6 +264,14 @@ async def perfil_guardar(
 
     error = None
     tenant.bio = bio.strip()[:500]
+    if not (0 <= descuento_pct <= 30):
+        error = "El descuento debe estar entre 0 y 30 %"
+    elif not (0 <= recogida_eur <= 5):
+        error = "La recogida debe estar entre 0 y 5 €"
+    else:
+        tenant.descuento_pct = descuento_pct
+        tenant.recogida_eur = round(recogida_eur, 2)
+    tenant.telegram_chat_id = telegram_chat_id.strip()[:32] or None
     if foto is not None and foto.filename:
         contenido = await foto.read()
         if foto.content_type not in ("image/jpeg", "image/png"):
@@ -295,14 +309,21 @@ def toggle_bolsa(
 @router.post("/solicitudes/{solicitud_id}/aceptar")
 def aceptar_viaje(
     solicitud_id: uuid.UUID,
+    descuento_pct: int = Form(0),
+    recogida_eur: float = Form(5.0),
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
     provs=Depends(proveedores),
     sender=Depends(email_sender),
 ):
+    if not (0 <= descuento_pct <= 30 and 0 <= recogida_eur <= 5):
+        raise HTTPException(422, "Ajuste de precio fuera de los límites (0–30 %, 0–5 €)")
     geocoder, rutas = provs
     try:
-        solicitud, reserva = aceptar_solicitud(db, tenant, solicitud_id, geocoder, rutas)
+        solicitud, reserva = aceptar_solicitud(
+            db, tenant, solicitud_id, geocoder, rutas,
+            descuento_pct=descuento_pct, recogida_eur=recogida_eur,
+        )
     except (ErrorBolsa, ErrorCotizacion, ErrorReserva) as e:
         raise HTTPException(422, str(e))
     from app.services.notificaciones import notificar_confirmacion

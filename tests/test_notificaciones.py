@@ -56,40 +56,53 @@ def reservar(client, email=None, telefono="600111222"):
 
 def test_confirmacion_con_email_adjunta_justificante(client, db, espia):
     reservar(client, email="ana@example.com")
-    assert len(espia.enviados) == 1
-    email = espia.enviados[0]
+    # Salen dos: la confirmación al cliente y el aviso al taxista
+    al_cliente = [e for e in espia.enviados if e.para == "ana@example.com"]
+    assert len(al_cliente) == 1
+    email = al_cliente[0]
     assert email.para == "ana@example.com"
     assert "A-000001" in email.asunto
     assert "/r/" in email.html
     assert email.adjuntos and email.adjuntos[0].nombre.startswith("justificante-A-000001")
 
-    notif = db.execute(select(Notificacion)).scalar_one()
-    assert (notif.canal, notif.tipo, notif.estado) == ("email", "confirmacion", "enviada")
+    notif = db.execute(
+        select(Notificacion).where(Notificacion.tipo == "confirmacion")
+    ).scalar_one()
+    assert (notif.canal, notif.estado) == ("email", "enviada")
+
+    # Y el taxista recibe su aviso
+    assert any(e.para == "demo@example.com" for e in espia.enviados)
+    aviso = db.execute(
+        select(Notificacion).where(Notificacion.tipo == "aviso_taxista")
+    ).scalars().all()
+    assert len(aviso) >= 1
 
 
 def test_sin_email_no_envia_pero_reserva_ok(client, db, espia):
     reservar(client, email=None)
-    assert espia.enviados == []
-    assert db.execute(select(Notificacion)).first() is None
+    # Sin email del cliente no hay confirmación, pero el taxista sí recibe aviso
+    assert all(e.para == "demo@example.com" for e in espia.enviados)
+    tipos = [n.tipo for n in db.execute(select(Notificacion)).scalars()]
+    assert "confirmacion" not in tipos
 
 
 def test_fallo_del_proveedor_no_rompe_la_reserva(client, db, espia):
     espia.fallar = True
     cuerpo = reservar(client, email="ana@example.com")  # no lanza: la reserva se crea
     assert cuerpo["justificante"]["numero"] == 1
-    notif = db.execute(select(Notificacion)).scalar_one()
-    assert notif.estado == "fallida"
+    estados = {n.estado for n in db.execute(select(Notificacion)).scalars()}
+    assert estados == {"fallida"}
 
 
 def test_cancelacion_envia_email(client, db, espia):
     cuerpo = reservar(client, email="ana@example.com")
     client.post(f"/api/reservas/{cuerpo['reserva_token']}/cancelar")
-    tipos = [e.asunto for e in espia.enviados]
-    assert len(espia.enviados) == 2
-    assert "cancelada" in tipos[1]
+    cancelaciones = [e for e in espia.enviados if "cancelada" in e.asunto]
+    assert len(cancelaciones) == 1
     # Cancelar de nuevo no reenvía el email
+    total = len(espia.enviados)
     client.post(f"/api/reservas/{cuerpo['reserva_token']}/cancelar")
-    assert len(espia.enviados) == 2
+    assert len(espia.enviados) == total
 
 
 def test_recordatorios(client, db, espia):

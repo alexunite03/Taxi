@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     vapid_public_key: str = ""
     vapid_email: str = "reservas@example.com"
 
+    # Avisos al taxista por Telegram: console (desarrollo) | telegram
+    telegram_provider: str = "console"
+    telegram_bot_token: str = ""
+
     # Recordatorio previo a la recogida (minutos antes)
     recordatorio_min: int = 30
 

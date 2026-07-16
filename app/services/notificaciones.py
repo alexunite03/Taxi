@@ -151,6 +151,85 @@ def notificar_cancelacion(
     )
 
 
+def notificar_taxista_reserva(db: Session, sender, telegram, reserva: Reserva):
+    """Avisa al taxista de una reserva nueva por email y, si tiene chat
+    vinculado, por Telegram. Nunca bloquea la reserva."""
+    tenant = reserva.tenant
+    cot = reserva.cotizacion
+    texto = (
+        f"Nueva reserva {cot.fecha_hora_recogida.strftime('%d/%m %H:%M')} · "
+        f"{cot.origen_texto} → {cot.destino_texto} · "
+        f"{reserva.precio_cerrado} € · {reserva.cliente.nombre} "
+        f"({reserva.cliente.telefono})"
+    )
+    notificacion = Notificacion(reserva_id=reserva.id, canal="email", tipo="aviso_taxista")
+    try:
+        sender.enviar(Email(
+            para=tenant.email,
+            asunto=f"Nueva reserva: {cot.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
+            html=f"<p>{texto}</p><p><a href='{settings.base_url}/panel'>Abrir mi agenda</a></p>",
+        ))
+        notificacion.estado = "enviada"
+        notificacion.enviada_en = datetime.now(timezone.utc)
+    except Exception:
+        logger.exception("Fallo avisando por email al taxista %s", tenant.id)
+        notificacion.estado = "fallida"
+    db.add(notificacion)
+
+    if tenant.telegram_chat_id:
+        notif_tg = Notificacion(reserva_id=reserva.id, canal="telegram", tipo="aviso_taxista")
+        try:
+            telegram.enviar(tenant.telegram_chat_id, f"🚕 {texto}")
+            notif_tg.estado = "enviada"
+            notif_tg.enviada_en = datetime.now(timezone.utc)
+        except Exception:
+            logger.exception("Fallo avisando por Telegram al taxista %s", tenant.id)
+            notif_tg.estado = "fallida"
+        db.add(notif_tg)
+    db.commit()
+
+
+def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> int:
+    """Avisa a los taxistas con la bolsa activada de que hay un viaje nuevo
+    (email siempre, Telegram si tienen chat vinculado). Devuelve cuántos
+    avisos salieron."""
+    from app.models import Tenant
+
+    disponibles = (
+        db.execute(
+            select(Tenant).where(
+                Tenant.disponible_bolsa.is_(True),
+                Tenant.estado_suscripcion == "activa",
+            )
+        )
+        .scalars()
+        .all()
+    )
+    texto = (
+        f"Viaje nuevo en la bolsa: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} · "
+        f"{solicitud.origen_texto} → {solicitud.destino_texto} · "
+        f"estimado {solicitud.precio_estimado} €"
+    )
+    enviados = 0
+    for t in disponibles:
+        try:
+            sender.enviar(Email(
+                para=t.email,
+                asunto="Viaje nuevo en la bolsa",
+                html=f"<p>{texto}</p><p><a href='{settings.base_url}/panel/bolsa'>Ver la bolsa</a></p>",
+            ))
+            enviados += 1
+        except Exception:
+            logger.exception("Fallo avisando bolsa por email a %s", t.id)
+        if t.telegram_chat_id:
+            try:
+                telegram.enviar(t.telegram_chat_id, f"🚕 {texto}\n{settings.base_url}/panel/bolsa")
+                enviados += 1
+            except Exception:
+                logger.exception("Fallo avisando bolsa por Telegram a %s", t.id)
+    return enviados
+
+
 def suscribir_push(db: Session, reserva: Reserva, suscripcion: dict) -> PushSuscripcion:
     """Alta (o refresco) de una PushSubscription del navegador para el
     cliente de la reserva. Idempotente por endpoint."""

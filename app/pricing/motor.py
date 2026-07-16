@@ -102,13 +102,23 @@ def precio_cerrado(
     dt_inicio: datetime,
     peaje: Decimal = Decimal("0"),
     escenario_no2: bool = False,
+    recogida: Decimal = RECOGIDA,
+    descuento_pct: Decimal = Decimal("0"),
 ) -> ResultadoCalculo:
+    """`recogida`: suplemento de desplazamiento hasta el punto de recogida,
+    entre 0 y el máximo reglamentario (5,00 €). `descuento_pct`: rebaja
+    comercial del taxista (0–30 %); siempre legal porque el precio cerrado
+    es un máximo."""
     if not tramos:
         raise ValueError("Se necesita al menos un tramo de ruta")
+    if not (Decimal("0") <= recogida <= RECOGIDA):
+        raise ValueError(f"La recogida debe estar entre 0 y {RECOGIDA} €")
+    if not (Decimal("0") <= descuento_pct <= Decimal("30")):
+        raise ValueError("El descuento debe estar entre 0 y 30 %")
 
     t0 = tarifa_aplicable(dt_inicio)
     inicio = TARIFAS[t0]["inicio"]
-    total = inicio + RECOGIDA
+    total = inicio + recogida
 
     detalle_tramos = []
     t = _a_madrid(dt_inicio)
@@ -145,6 +155,9 @@ def precio_cerrado(
     if descuento_aplicado:
         total *= FACTOR_DESCUENTO_NO2
 
+    if descuento_pct:
+        total *= (Decimal("100") - descuento_pct) / Decimal("100")
+
     precio = (total / PASO).quantize(Decimal("1"), ROUND_HALF_UP) * PASO
 
     payload = {
@@ -153,11 +166,12 @@ def precio_cerrado(
         "dt_fin_estimado": t.isoformat(),
         "tarifa_inicio": t0,
         "importe_inicio": str(inicio),
-        "importe_recogida": str(RECOGIDA),
+        "importe_recogida": str(recogida),
         "tramos": detalle_tramos,
         "suplemento_navidad": str(SUPL_NAVIDAD) if navidad else None,
         "peaje": str(peaje) if peaje else None,
         "descuento_no2": str(FACTOR_DESCUENTO_NO2) if descuento_aplicado else None,
+        "descuento_taxista_pct": str(descuento_pct) if descuento_pct else None,
         "total_sin_redondear": str(total.quantize(Decimal("0.0001"))),
         "paso_redondeo": str(PASO),
         "precio": str(precio),

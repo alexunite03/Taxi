@@ -87,7 +87,11 @@ def crear_cotizacion(
     con_peaje: bool | None = None,
     origen_lugar: Lugar | None = None,
     destino_lugar: Lugar | None = None,
+    descuento_pct: int | None = None,
+    recogida_eur: Decimal | None = None,
 ) -> Cotizacion:
+    """`descuento_pct` y `recogida_eur` anulan la política por defecto del
+    taxista para esta cotización (p. ej. al aceptar un viaje de la bolsa)."""
     if fecha_hora_recogida.tzinfo is None:
         raise AntelacionInvalida("La fecha de recogida necesita zona horaria")
     _validar_antelacion(tenant, fecha_hora_recogida)
@@ -113,11 +117,17 @@ def crear_cotizacion(
         raise DecisionPeajeRequerida(ruta.peaje_estimado)
 
     peaje = ruta.peaje_estimado if (con_peaje and ruta.peaje_estimado) else Decimal("0")
+    if descuento_pct is None:
+        descuento_pct = tenant.descuento_pct or 0
+    if recogida_eur is None:
+        recogida_eur = Decimal(str(tenant.recogida_eur))
     resultado = precio_cerrado(
         ruta.tramos,
         fecha_hora_recogida,
         peaje=peaje,
         escenario_no2=tenant.flag_contaminacion,
+        recogida=Decimal(str(recogida_eur)),
+        descuento_pct=Decimal(str(descuento_pct)),
     )
 
     cotizacion = Cotizacion(

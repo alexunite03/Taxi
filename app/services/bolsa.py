@@ -48,6 +48,7 @@ def crear_solicitud(
     fecha_hora_recogida: datetime,
     origen_lugar: Lugar | None = None,
     destino_lugar: Lugar | None = None,
+    intermediario_id=None,
 ) -> SolicitudViaje:
     ahora = datetime.now(timezone.utc)
     if fecha_hora_recogida.tzinfo is None:
@@ -87,6 +88,7 @@ def crear_solicitud(
         destino_lng=destino.lng,
         fecha_hora_recogida=fecha_hora_recogida,
         precio_estimado=estimacion.precio,
+        intermediario_id=intermediario_id,
     )
     db.add(solicitud)
     db.commit()
@@ -149,6 +151,8 @@ def aceptar_solicitud(
     solicitud_id,
     geocoder: Geocoder,
     rutas: RouteProvider,
+    descuento_pct: int | None = None,
+    recogida_eur=None,
 ):
     """Primer taxista que llega, se lo lleva: bloqueo de la fila y
     comprobación del estado dentro de la transacción."""
@@ -184,6 +188,8 @@ def aceptar_solicitud(
         con_peaje=False,
         origen_lugar=Lugar(solicitud.origen_texto, solicitud.origen_lat, solicitud.origen_lng),
         destino_lugar=Lugar(solicitud.destino_texto, solicitud.destino_lat, solicitud.destino_lng),
+        descuento_pct=descuento_pct,
+        recogida_eur=recogida_eur,
     )
     reserva = aceptar_reserva(
         db,
