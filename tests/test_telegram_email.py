@@ -114,3 +114,16 @@ def test_smtp_sender(monkeypatch):
     assert m["Subject"] == "Reserva confirmada"
     adjuntos = [p.get_filename() for p in m.iter_attachments()]
     assert adjuntos == ["justificante-A-000001.html"]
+
+
+def test_canal_mal_configurado_no_tumba_el_arranque():
+    from app.main import crear_app
+    from app.notificaciones import ConsoleTelegramSender
+
+    anterior = settings.telegram_provider
+    settings.telegram_provider = "telegram"  # sin token: configuración rota
+    try:
+        aplicacion = crear_app()
+        assert isinstance(aplicacion.state.telegram_sender, ConsoleTelegramSender)
+    finally:
+        settings.telegram_provider = anterior

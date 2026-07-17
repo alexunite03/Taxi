@@ -28,9 +28,33 @@ def crear_app() -> FastAPI:
     )
 
     app.state.geocoder, app.state.rutas = crear_proveedores()
-    app.state.email_sender = crear_email_sender()
-    app.state.push_sender = crear_push_sender()
-    app.state.telegram_sender = crear_telegram_sender()
+
+    # Un canal de avisos mal configurado no debe impedir el arranque de la
+    # web: se degrada a consola y se deja constancia clara en los logs.
+    import logging
+
+    from .notificaciones import ConsoleEmailSender, ConsolePushSender, ConsoleTelegramSender
+
+    log = logging.getLogger("taxi.arranque")
+
+    def _con_respaldo(nombre, fabrica, respaldo):
+        try:
+            return fabrica()
+        except Exception as e:
+            log.error(
+                "Canal %s mal configurado (%s). La web arranca igualmente "
+                "con el proveedor de consola: revisa las variables TAXI_*.",
+                nombre, e,
+            )
+            print(f"AVISO: canal {nombre} mal configurado: {e}. "
+                  "Usando proveedor de consola.", flush=True)
+            return respaldo()
+
+    app.state.email_sender = _con_respaldo("email", crear_email_sender, ConsoleEmailSender)
+    app.state.push_sender = _con_respaldo("push", crear_push_sender, ConsolePushSender)
+    app.state.telegram_sender = _con_respaldo(
+        "telegram", crear_telegram_sender, ConsoleTelegramSender
+    )
 
     app.mount(
         "/static",
