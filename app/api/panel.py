@@ -264,6 +264,7 @@ async def perfil_guardar(
     bio: str = Form(""),
     descuento_pct: int = Form(0),
     recogida_eur: float = Form(5.0),
+    radio_km: float = Form(15.0),
     telegram_chat_id: str = Form(""),
     foto: UploadFile | None = None,
     tenant: Tenant = Depends(tenant_sesion),
@@ -277,9 +278,12 @@ async def perfil_guardar(
         error = "El descuento debe estar entre 0 y 30 %"
     elif not (0 <= recogida_eur <= 5):
         error = "La recogida debe estar entre 0 y 5 €"
+    elif not (1 <= radio_km <= 100):
+        error = "El radio de la bolsa debe estar entre 1 y 100 km"
     else:
         tenant.descuento_pct = descuento_pct
         tenant.recogida_eur = round(recogida_eur, 2)
+        tenant.radio_km = round(radio_km, 1)
     tenant.telegram_chat_id = telegram_chat_id.strip()[:32] or None
     if foto is not None and foto.filename:
         contenido = await foto.read()

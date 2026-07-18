@@ -45,6 +45,13 @@
     <p class="ayuda">Entre 0 y 5,00 € (máximo reglamentario para servicios concertados).</p>
   </div>
   <div class="campo">
+    <label for="radio_km">Radio de la bolsa de viajes</label>
+    <input type="number" id="radio_km" name="radio_km" min="1" max="100" step="1"
+           value="{{ tenant.radio_km or 15 }}">
+    <p class="ayuda">Si compartes tu ubicación con el bot de Telegram, solo te
+    avisará de los viajes con recogida a menos de esta distancia.</p>
+  </div>
+  <div class="campo">
     <label for="telegram_chat_id">Avisos por Telegram</label>
     {% if tenant.telegram_chat_id %}
     <p class="badge-verde" style="margin:.25rem 0">✅ Telegram vinculado.

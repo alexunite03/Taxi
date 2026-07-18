@@ -119,6 +119,13 @@ def solicitudes_abiertas(db: Session) -> list[SolicitudViaje]:
     return [s for s in abiertas if futura(s)]
 
 
+def radio_de(tenant) -> float:
+    """Radio de la bolsa de este taxista (su ajuste o el global)."""
+    from app.config import settings
+
+    return float(tenant.radio_km) if tenant.radio_km else settings.bolsa_radio_km
+
+
 def distancia_km(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
     """Distancia haversine en km entre dos puntos."""
     import math

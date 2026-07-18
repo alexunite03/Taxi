@@ -35,6 +35,7 @@ AYUDA = (
     "Comandos:\n"
     "📍 Envíame tu ubicación (o ubicación en tiempo real) y solo te "
     "avisaré de los viajes cercanos\n"
+    "/radio 10 — recibir solo viajes a menos de 10 km (elige tu distancia)\n"
     "/desconectar — dejar de recibir viajes de la bolsa\n"
     "/conectar — volver a recibirlos\n"
     "/estado — cómo estás ahora mismo\n"
@@ -86,12 +87,43 @@ def webhook(
         db.commit()
         es_directo = "live_period" in ubicacion or update.get("edited_message")
         if not es_directo:
+            from app.services.bolsa import radio_de
+
             responder(
                 f"📍 Ubicación guardada. Solo te avisaré de los viajes a menos "
-                f"de {settings.bolsa_radio_km:g} km. Envíame otra cuando "
-                "cambies de zona, o comparte tu ubicación en tiempo real y me "
-                "actualizo solo."
+                f"de {radio_de(tenant):g} km (cámbialo con /radio, p. ej. "
+                "/radio 10). Envíame otra ubicación cuando cambies de zona, o "
+                "comparte tu ubicación en tiempo real y me actualizo solo."
             )
+        return {"ok": True}
+
+    if texto.startswith("/radio"):
+        tenant = tenant_del_chat()
+        if tenant is None:
+            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
+            return {"ok": True}
+        from app.services.bolsa import radio_de
+
+        partes = texto.split(maxsplit=1)
+        if len(partes) == 1:
+            responder(
+                f"Tu radio actual es de {radio_de(tenant):g} km. Para "
+                "cambiarlo escribe, por ejemplo: /radio 10"
+            )
+            return {"ok": True}
+        try:
+            km = float(partes[1].replace(",", "."))
+        except ValueError:
+            responder("No he entendido la distancia. Ejemplo: /radio 10")
+            return {"ok": True}
+        if not (1 <= km <= 100):
+            responder("El radio debe estar entre 1 y 100 km.")
+            return {"ok": True}
+        tenant.radio_km = km
+        db.commit()
+        extra = ("" if tenant.ubicacion_lat is not None
+                 else " Envíame tu 📍 ubicación para activar el filtro.")
+        responder(f"✅ Radio guardado: solo viajes a menos de {km:g} km.{extra}")
         return {"ok": True}
 
     if texto.startswith("/desconectar"):
@@ -122,10 +154,12 @@ def webhook(
             responder("Este chat no está vinculado a ninguna cuenta. "
                       "Panel → Mi perfil → «Vincular Telegram».")
         else:
+            from app.services.bolsa import radio_de
+
             estado = "🟢 conectado" if tenant.disponible_bolsa else "🔴 desconectado"
             if tenant.ubicacion_lat is not None:
                 zona = (f"📍 con ubicación guardada (aviso de viajes a menos de "
-                        f"{settings.bolsa_radio_km:g} km)")
+                        f"{radio_de(tenant):g} km)")
             else:
                 zona = "sin ubicación: recibes todos los viajes de la bolsa"
             responder(f"{tenant.nombre}: {estado} · {zona}")

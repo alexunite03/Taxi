@@ -50,6 +50,7 @@ _COLUMNAS_NUEVAS = [
     ("tenants", "ubicacion_lat", "FLOAT"),
     ("tenants", "ubicacion_lng", "FLOAT"),
     ("tenants", "ubicacion_en", "TIMESTAMP WITH TIME ZONE"),
+    ("tenants", "radio_km", "FLOAT"),
 ]
 
 

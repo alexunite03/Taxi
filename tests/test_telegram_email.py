@@ -221,3 +221,85 @@ def test_avisos_de_bolsa_filtrados_por_cercania(client, db):
     finally:
         app.state.telegram_sender = original_tg
         app.state.email_sender = original_email
+
+
+def test_radio_configurable_por_taxista(client, db):
+    original = con_telegram_espia()
+    try:
+        _vincular(client, db)
+
+        # Consultar sin argumento → radio global por defecto
+        update_telegram(client, "/radio")
+        assert "15 km" in app.state.telegram_sender.enviados[-1][1]
+
+        # Cambiarlo desde el bot
+        update_telegram(client, "/radio 7")
+        db.expire_all()
+        tenant = db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+        assert tenant.radio_km == 7
+        assert "7 km" in app.state.telegram_sender.enviados[-1][1]
+
+        # Valores inválidos rechazados
+        update_telegram(client, "/radio 500")
+        assert "entre 1 y 100" in app.state.telegram_sender.enviados[-1][1]
+        update_telegram(client, "/radio abc")
+        assert "No he entendido" in app.state.telegram_sender.enviados[-1][1]
+
+        # También desde el panel
+        from .test_bolsa import login_panel
+
+        login_panel(client)
+        client.post("/panel/perfil", data={
+            "bio": "", "descuento_pct": "0", "recogida_eur": "5",
+            "radio_km": "25", "telegram_chat_id": tenant.telegram_chat_id or ""})
+        db.expire_all()
+        assert db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one().radio_km == 25
+        r = client.post("/panel/perfil", data={
+            "bio": "", "descuento_pct": "0", "recogida_eur": "5",
+            "radio_km": "300", "telegram_chat_id": ""})
+        assert r.status_code == 422
+    finally:
+        app.state.telegram_sender = original
+
+
+def test_avisos_respetan_radio_del_taxista(client, db):
+    from .test_bolsa import publicar_viaje
+    from .test_notificaciones import SenderEspia
+    from app.models import SolicitudViaje
+    from app.services.bolsa import distancia_km
+
+    original_tg = con_telegram_espia()
+    original_email = app.state.email_sender
+    app.state.email_sender = SenderEspia()
+    try:
+        _vincular(client, db)
+        client.post("/panel/logout")
+
+        # Primera solicitud para conocer las coordenadas de recogida
+        publicar_viaje(client)
+        solicitud = db.execute(select(SolicitudViaje)).scalars().first()
+        app.state.telegram_sender.enviados.clear()  # aviso previo, sin filtro aún
+
+        # Taxista a ~6 km de la recogida con radio de 5 → no recibe
+        tenant = db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+        tenant.ubicacion_lat = solicitud.origen_lat + 0.055  # ≈ 6 km al norte
+        tenant.ubicacion_lng = solicitud.origen_lng
+        tenant.radio_km = 5
+        db.commit()
+        d = distancia_km(tenant.ubicacion_lat, tenant.ubicacion_lng,
+                         solicitud.origen_lat, solicitud.origen_lng)
+        assert 5 < d < 8  # sanity check del escenario
+
+        publicar_viaje(client, destino="Destino B")
+        assert not [t for _, t in app.state.telegram_sender.enviados if "Viaje nuevo" in t]
+
+        # Con radio de 10 sí lo recibe
+        tenant = db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+        tenant.radio_km = 10
+        db.commit()
+        publicar_viaje(client, destino="Destino C")
+        avisos = [t for _, t in app.state.telegram_sender.enviados if "Viaje nuevo" in t]
+        assert len(avisos) == 1 and "km de ti" in avisos[0]
+    finally:
+        app.state.telegram_sender = original_tg
+        app.state.email_sender = original_email

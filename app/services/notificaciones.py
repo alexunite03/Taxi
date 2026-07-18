@@ -210,7 +210,7 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
         f"{solicitud.origen_texto} → {solicitud.destino_texto} · "
         f"estimado {solicitud.precio_estimado} €"
     )
-    from app.services.bolsa import distancia_km
+    from app.services.bolsa import distancia_km, radio_de
 
     enviados = 0
     for t in disponibles:
@@ -222,7 +222,7 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
                 t.ubicacion_lat, t.ubicacion_lng,
                 solicitud.origen_lat, solicitud.origen_lng,
             )
-            if d > settings.bolsa_radio_km:
+            if d > radio_de(t):
                 continue
             texto = f"{base} · a {d:.1f} km de ti"
         try:

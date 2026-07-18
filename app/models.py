@@ -76,6 +76,8 @@ class Tenant(Base):
     ubicacion_en: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Radio en km para aceptar viajes de la bolsa; NULL = valor global
+    radio_km: Mapped[float | None] = mapped_column(nullable=True)
 
     estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
