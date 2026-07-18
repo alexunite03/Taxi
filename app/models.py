@@ -69,6 +69,14 @@ class Tenant(Base):
     # Código de un solo uso para vincular el chat con /start <código>
     telegram_codigo: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    # Última ubicación compartida por Telegram (modo Uber): con ella solo
+    # recibe los viajes de la bolsa a menos de `bolsa_radio_km`.
+    ubicacion_lat: Mapped[float | None] = mapped_column(nullable=True)
+    ubicacion_lng: Mapped[float | None] = mapped_column(nullable=True)
+    ubicacion_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     fecha_alta: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)

@@ -127,3 +127,97 @@ def test_canal_mal_configurado_no_tumba_el_arranque():
         assert isinstance(aplicacion.state.telegram_sender, ConsoleTelegramSender)
     finally:
         settings.telegram_provider = anterior
+
+
+def _vincular(client, db):
+    from .test_bolsa import login_panel
+
+    login_panel(client)
+    client.get("/panel/perfil")
+    db.expire_all()
+    tenant = db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+    update_telegram(client, f"/start {tenant.telegram_codigo}")
+    db.expire_all()
+    return db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+
+
+def test_ubicacion_y_modo_uber(client, db):
+    original = con_telegram_espia()
+    try:
+        tenant = _vincular(client, db)
+
+        # 📍 Ubicación → se guarda y el bot confirma con el radio
+        client.post("/api/telegram/webhook", json={"message": {
+            "chat": {"id": 777000},
+            "location": {"latitude": 40.42, "longitude": -3.70},
+        }})
+        db.expire_all()
+        tenant = db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+        assert tenant.ubicacion_lat == 40.42 and tenant.ubicacion_lng == -3.70
+        assert "Ubicación guardada" in app.state.telegram_sender.enviados[-1][1]
+
+        # /desconectar y /conectar como en Uber
+        update_telegram(client, "/desconectar")
+        db.expire_all()
+        assert db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one().disponible_bolsa is False
+        assert "🔴" in app.state.telegram_sender.enviados[-1][1]
+
+        update_telegram(client, "/conectar")
+        db.expire_all()
+        assert db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one().disponible_bolsa is True
+
+        update_telegram(client, "/estado")
+        assert "🟢 conectado" in app.state.telegram_sender.enviados[-1][1]
+    finally:
+        app.state.telegram_sender = original
+
+
+def test_ubicacion_sin_vincular(client, db):
+    original = con_telegram_espia()
+    try:
+        client.post("/api/telegram/webhook", json={"message": {
+            "chat": {"id": 999111},
+            "location": {"latitude": 40.42, "longitude": -3.70},
+        }})
+        assert "vincula tu cuenta" in app.state.telegram_sender.enviados[-1][1]
+    finally:
+        app.state.telegram_sender = original
+
+
+def test_avisos_de_bolsa_filtrados_por_cercania(client, db):
+    from .test_bolsa import publicar_viaje
+    from .test_notificaciones import SenderEspia
+    from app.models import SolicitudViaje
+
+    original_tg = con_telegram_espia()
+    original_email = app.state.email_sender
+    app.state.email_sender = SenderEspia()
+    try:
+        tenant = _vincular(client, db)
+        client.post("/panel/logout")
+
+        # El taxista está lejísimos de cualquier recogida en Madrid
+        tenant = db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+        tenant.ubicacion_lat, tenant.ubicacion_lng = 43.36, -8.41  # A Coruña
+        db.commit()
+
+        publicar_viaje(client)
+        avisos_bolsa = [t for _, t in app.state.telegram_sender.enviados
+                        if "Viaje nuevo" in t]
+        assert avisos_bolsa == []  # demasiado lejos: ni telegram ni email
+
+        # Ahora está al lado de la recogida → recibe el aviso con distancia
+        solicitud = db.execute(select(SolicitudViaje)).scalars().first()
+        tenant = db.execute(select(Tenant).where(Tenant.slug == "demo")).scalar_one()
+        tenant.ubicacion_lat = solicitud.origen_lat
+        tenant.ubicacion_lng = solicitud.origen_lng
+        db.commit()
+
+        publicar_viaje(client, destino="Otro destino cercano")
+        avisos_bolsa = [t for _, t in app.state.telegram_sender.enviados
+                        if "Viaje nuevo" in t]
+        assert len(avisos_bolsa) == 1
+        assert "km de ti" in avisos_bolsa[0]
+    finally:
+        app.state.telegram_sender = original_tg
+        app.state.email_sender = original_email

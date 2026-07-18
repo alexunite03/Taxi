@@ -31,8 +31,14 @@ router = APIRouter(prefix="/api/telegram")
 AYUDA = (
     "Hola 👋 Soy el bot de avisos de TaxiMad.\n\n"
     "Si eres taxista, vincula tu cuenta desde tu panel → Mi perfil → "
-    "«Vincular Telegram». También puedes escribir /id y pegar el número "
-    "en tu perfil."
+    "«Vincular Telegram».\n\n"
+    "Comandos:\n"
+    "📍 Envíame tu ubicación (o ubicación en tiempo real) y solo te "
+    "avisaré de los viajes cercanos\n"
+    "/desconectar — dejar de recibir viajes de la bolsa\n"
+    "/conectar — volver a recibirlos\n"
+    "/estado — cómo estás ahora mismo\n"
+    "/id — tu chat ID (vinculación manual)"
 )
 
 
@@ -51,6 +57,7 @@ def webhook(
     mensaje = update.get("message") or update.get("edited_message") or {}
     chat_id = str((mensaje.get("chat") or {}).get("id") or "")
     texto = (mensaje.get("text") or "").strip()
+    ubicacion = mensaje.get("location")
     if not chat_id:
         return {"ok": True}
 
@@ -59,6 +66,70 @@ def webhook(
             telegram.enviar(chat_id, t)
         except Exception:
             logger.exception("No se pudo responder al chat %s", chat_id)
+
+    def tenant_del_chat():
+        return db.execute(
+            select(Tenant).where(Tenant.telegram_chat_id == chat_id)
+        ).scalar_one_or_none()
+
+    # 📍 Ubicación (normal o en tiempo real): modo Uber
+    if ubicacion is not None:
+        tenant = tenant_del_chat()
+        if tenant is None:
+            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
+            return {"ok": True}
+        from datetime import datetime, timezone
+
+        tenant.ubicacion_lat = float(ubicacion.get("latitude"))
+        tenant.ubicacion_lng = float(ubicacion.get("longitude"))
+        tenant.ubicacion_en = datetime.now(timezone.utc)
+        db.commit()
+        es_directo = "live_period" in ubicacion or update.get("edited_message")
+        if not es_directo:
+            responder(
+                f"📍 Ubicación guardada. Solo te avisaré de los viajes a menos "
+                f"de {settings.bolsa_radio_km:g} km. Envíame otra cuando "
+                "cambies de zona, o comparte tu ubicación en tiempo real y me "
+                "actualizo solo."
+            )
+        return {"ok": True}
+
+    if texto.startswith("/desconectar"):
+        tenant = tenant_del_chat()
+        if tenant is None:
+            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
+        else:
+            tenant.disponible_bolsa = False
+            db.commit()
+            responder("🔴 Desconectado: no recibirás viajes de la bolsa. "
+                      "Vuelve cuando quieras con /conectar.")
+        return {"ok": True}
+
+    if texto.startswith("/conectar"):
+        tenant = tenant_del_chat()
+        if tenant is None:
+            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
+        else:
+            tenant.disponible_bolsa = True
+            db.commit()
+            responder("🟢 Conectado: volverás a recibir los viajes de la bolsa. "
+                      "Envíame tu 📍 ubicación para recibir solo los cercanos.")
+        return {"ok": True}
+
+    if texto.startswith("/estado"):
+        tenant = tenant_del_chat()
+        if tenant is None:
+            responder("Este chat no está vinculado a ninguna cuenta. "
+                      "Panel → Mi perfil → «Vincular Telegram».")
+        else:
+            estado = "🟢 conectado" if tenant.disponible_bolsa else "🔴 desconectado"
+            if tenant.ubicacion_lat is not None:
+                zona = (f"📍 con ubicación guardada (aviso de viajes a menos de "
+                        f"{settings.bolsa_radio_km:g} km)")
+            else:
+                zona = "sin ubicación: recibes todos los viajes de la bolsa"
+            responder(f"{tenant.nombre}: {estado} · {zona}")
+        return {"ok": True}
 
     if texto.startswith("/start"):
         partes = texto.split(maxsplit=1)

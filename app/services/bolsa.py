@@ -119,23 +119,25 @@ def solicitudes_abiertas(db: Session) -> list[SolicitudViaje]:
     return [s for s in abiertas if futura(s)]
 
 
+def distancia_km(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
+    """Distancia haversine en km entre dos puntos."""
+    import math
+
+    r = 6371.0
+    p1, p2 = math.radians(a_lat), math.radians(b_lat)
+    dp = math.radians(b_lat - a_lat)
+    dl = math.radians(b_lng - a_lng)
+    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return r * 2 * math.asin(math.sqrt(x))
+
+
 def con_distancia(
     solicitudes: list[SolicitudViaje], lat: float, lng: float
 ) -> list[SolicitudViaje]:
     """Anota `distancia_km` (recogida ↔ posición del taxista) y ordena por
     cercanía. Para el listado de la bolsa."""
-    import math
-
-    def haversine(a_lat, a_lng, b_lat, b_lng):
-        r = 6371.0
-        p1, p2 = math.radians(a_lat), math.radians(b_lat)
-        dp = math.radians(b_lat - a_lat)
-        dl = math.radians(b_lng - a_lng)
-        x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-        return r * 2 * math.asin(math.sqrt(x))
-
     for s in solicitudes:
-        s.distancia_km = round(haversine(lat, lng, s.origen_lat, s.origen_lng), 1)
+        s.distancia_km = round(distancia_km(lat, lng, s.origen_lat, s.origen_lng), 1)
     return sorted(solicitudes, key=lambda s: s.distancia_km)
 
 

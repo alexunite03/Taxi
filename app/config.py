@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     telegram_bot_username: str = ""      # sin @, para el enlace t.me de vinculación
     telegram_webhook_secret: str = ""    # valida los updates entrantes del bot
 
+    # Radio (km) de los avisos de la bolsa cuando el taxista comparte
+    # su ubicación por Telegram
+    bolsa_radio_km: float = 15.0
+
     # Recordatorio previo a la recogida (minutos antes)
     recordatorio_min: int = 30
 

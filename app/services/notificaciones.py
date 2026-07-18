@@ -205,13 +205,26 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
         .scalars()
         .all()
     )
-    texto = (
+    base = (
         f"Viaje nuevo en la bolsa: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} · "
         f"{solicitud.origen_texto} → {solicitud.destino_texto} · "
         f"estimado {solicitud.precio_estimado} €"
     )
+    from app.services.bolsa import distancia_km
+
     enviados = 0
     for t in disponibles:
+        # Modo Uber: si el taxista compartió su ubicación por Telegram, solo
+        # se le avisa de los viajes con recogida dentro de su radio.
+        texto = base
+        if t.ubicacion_lat is not None and t.ubicacion_lng is not None:
+            d = distancia_km(
+                t.ubicacion_lat, t.ubicacion_lng,
+                solicitud.origen_lat, solicitud.origen_lng,
+            )
+            if d > settings.bolsa_radio_km:
+                continue
+            texto = f"{base} · a {d:.1f} km de ti"
         try:
             sender.enviar(Email(
                 para=t.email,

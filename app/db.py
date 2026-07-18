@@ -43,7 +43,35 @@ def get_db():
         db.close()
 
 
+# Columnas añadidas después del primer despliegue: create_all no altera
+# tablas existentes, así que se aplican aquí (mini-migración idempotente).
+# Cuando el esquema se estabilice, migrar a Alembic.
+_COLUMNAS_NUEVAS = [
+    ("tenants", "ubicacion_lat", "FLOAT"),
+    ("tenants", "ubicacion_lng", "FLOAT"),
+    ("tenants", "ubicacion_en", "TIMESTAMP WITH TIME ZONE"),
+]
+
+
+def _migrar(engine) -> None:
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    with engine.begin() as conexion:
+        for tabla, columna, tipo in _COLUMNAS_NUEVAS:
+            if tabla not in inspector.get_table_names():
+                continue
+            existentes = {c["name"] for c in inspector.get_columns(tabla)}
+            if columna in existentes:
+                continue
+            if engine.dialect.name == "sqlite" and "TIME ZONE" in tipo:
+                tipo = "TIMESTAMP"
+            conexion.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}"))
+            print(f"Migración: añadida {tabla}.{columna}", flush=True)
+
+
 def init_db() -> None:
     from . import models  # noqa: F401  (registra las tablas)
 
     Base.metadata.create_all(engine)
+    _migrar(engine)
