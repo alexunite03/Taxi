@@ -240,6 +240,18 @@ def bolsa_pagina(
     )
 
 
+def _estado_canales(request: Request) -> list[dict]:
+    """Qué proveedor está activo por canal, para verlo desde el panel sin
+    tener que bucear en los logs del servidor."""
+    filas = []
+    for canal, sender in (("email", request.app.state.email_sender),
+                          ("telegram", request.app.state.telegram_sender)):
+        clase = type(sender).__name__
+        filas.append({"canal": canal, "proveedor": clase,
+                      "real": not clase.startswith("Console")})
+    return filas
+
+
 @router.get("/perfil", response_class=HTMLResponse)
 def perfil_form(
     request: Request,
@@ -260,7 +272,69 @@ def perfil_form(
     return templates.TemplateResponse(
         request, "panel_perfil.html",
         {"tenant": tenant, "media": media, "total": total, "error": None,
-         "telegram_bot": settings.telegram_bot_username},
+         "telegram_bot": settings.telegram_bot_username,
+         "canales": _estado_canales(request), "resultados": None},
+    )
+
+
+@router.post("/avisos/probar", response_class=HTMLResponse)
+def probar_avisos(
+    request: Request,
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
+):
+    """Envía un email y un Telegram de prueba AHORA y muestra el resultado
+    (o el error exacto del proveedor) en pantalla."""
+    from app.notificaciones import Email
+    from app.web.perfiles import resumen_valoraciones
+
+    resultados = []
+
+    clase = type(sender).__name__
+    if clase.startswith("Console"):
+        resultados.append({"canal": "email", "ok": False, "detalle": (
+            "el canal está en modo consola: no envía emails reales. Configura "
+            "TAXI_EMAIL_PROVIDER=smtp con TAXI_SMTP_USER y TAXI_SMTP_PASSWORD "
+            "(contraseña de aplicación de Google) y redespliega.")})
+    else:
+        try:
+            sender.enviar(Email(
+                para=tenant.email,
+                asunto="Prueba de avisos · TaxiMad",
+                html="<p>Si estás leyendo esto, el canal de email funciona ✔</p>",
+            ))
+            resultados.append({"canal": "email", "ok": True,
+                               "detalle": f"enviado a {tenant.email} con {clase}. Revisa tu buzón (y el spam)."})
+        except Exception as e:
+            resultados.append({"canal": "email", "ok": False,
+                               "detalle": f"{clase} falló: {type(e).__name__}: {e}"})
+
+    clase_tg = type(telegram).__name__
+    if not tenant.telegram_chat_id:
+        resultados.append({"canal": "telegram", "ok": False,
+                           "detalle": "no tienes el chat vinculado (botón «Vincular Telegram»)."})
+    elif clase_tg.startswith("Console"):
+        resultados.append({"canal": "telegram", "ok": False, "detalle": (
+            "el canal está en modo consola: configura TAXI_TELEGRAM_PROVIDER=telegram "
+            "y TAXI_TELEGRAM_BOT_TOKEN y redespliega.")})
+    else:
+        try:
+            telegram.enviar(tenant.telegram_chat_id,
+                            "✅ Prueba de avisos: si lees esto, Telegram funciona.")
+            resultados.append({"canal": "telegram", "ok": True,
+                               "detalle": "mensaje enviado a tu chat."})
+        except Exception as e:
+            resultados.append({"canal": "telegram", "ok": False,
+                               "detalle": f"{clase_tg} falló: {type(e).__name__}: {e}"})
+
+    media, total = resumen_valoraciones(db, tenant.id)
+    return templates.TemplateResponse(
+        request, "panel_perfil.html",
+        {"tenant": tenant, "media": media, "total": total, "error": None,
+         "telegram_bot": settings.telegram_bot_username,
+         "canales": _estado_canales(request), "resultados": resultados},
     )
 
 
@@ -310,7 +384,8 @@ async def perfil_guardar(
         return templates.TemplateResponse(
             request, "panel_perfil.html",
             {"tenant": tenant, "media": media, "total": total, "error": error,
-             "telegram_bot": settings.telegram_bot_username},
+             "telegram_bot": settings.telegram_bot_username,
+             "canales": _estado_canales(request), "resultados": None},
             status_code=422,
         )
     return RedirectResponse("/panel/perfil", status_code=303)

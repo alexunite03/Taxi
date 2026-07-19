@@ -82,4 +82,28 @@
   </div>
   <button type="submit" class="principal">Guardar perfil</button>
 </form>
+
+<h2 style="margin-top:2rem">Estado de los avisos</h2>
+{% if resultados %}
+<ul class="lista-reservas">
+  {% for r in resultados %}
+  <li class="reserva">
+    {{ '✅' if r.ok else '❌' }} <strong>{{ r.canal }}</strong> · {{ r.detalle }}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+<ul>
+  {% for c in canales %}
+  <li><strong>{{ c.canal }}</strong>:
+    {% if c.real %}<span class="badge-verde" style="padding:.15rem .5rem">{{ c.proveedor }}</span>
+    {% else %}<span class="badge" style="padding:.15rem .5rem">solo consola — no envía
+    nada real (faltan variables TAXI_* en el servidor)</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+<form method="post" action="/panel/avisos/probar">
+  <button type="submit" class="secundario" style="width:auto">Enviar un aviso de
+  prueba a mi email y mi Telegram</button>
+</form>
 {% endblock %}

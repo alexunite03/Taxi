@@ -74,6 +74,37 @@ def test_webhook_con_secreto(client):
         app.state.telegram_sender = original
 
 
+def test_probador_de_avisos_en_el_panel(client, db):
+    from .test_notificaciones import SenderEspia
+
+    original_tg = con_telegram_espia()
+    original_email = app.state.email_sender
+    app.state.email_sender = SenderEspia()
+    try:
+        _vincular(client, db)
+        login_panel(client)
+
+        # El perfil muestra el estado de los canales
+        perfil = client.get("/panel/perfil")
+        assert "Estado de los avisos" in perfil.text
+
+        # Probar: los espías no son Console*, así que "envían de verdad"
+        r = client.post("/panel/avisos/probar")
+        assert r.status_code == 200
+        assert "Prueba de avisos" in app.state.email_sender.enviados[-1].asunto
+        assert any("Telegram funciona" in t
+                   for _, t in app.state.telegram_sender.enviados)
+        assert "✅" in r.text
+
+        # Con un proveedor roto, el error exacto se ve en pantalla
+        app.state.email_sender = SenderEspia(fallar=True)
+        r = client.post("/panel/avisos/probar")
+        assert "falló" in r.text and "proveedor caído" in r.text
+    finally:
+        app.state.telegram_sender = original_tg
+        app.state.email_sender = original_email
+
+
 def test_smtp_sender(monkeypatch):
     enviados = []
 
