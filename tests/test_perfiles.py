@@ -5,17 +5,13 @@ from sqlalchemy import select
 
 from app.models import Reserva, Valoracion
 
-from .test_api import pedir_cotizacion
+from .test_api import pedir_cotizacion, reservar_directa
 from .test_bolsa import login_panel
 
 
 def reservar_y_completar(client, db, telefono="600111222"):
     cot = pedir_cotizacion(client).json()
-    r = client.post(
-        "/api/t/demo/reservas",
-        json={"cotizacion_id": cot["cotizacion_id"], "nombre": "Ana García",
-              "telefono": telefono},
-    ).json()
+    r = reservar_directa(client, db, cot["cotizacion_id"], telefono=telefono)
     reserva = db.execute(
         select(Reserva).where(Reserva.token_publico == r["reserva_token"])
     ).scalar_one()
@@ -57,11 +53,7 @@ def test_valorar_tras_completar(client, db):
 
 def test_no_se_valora_sin_completar(client, db):
     cot = pedir_cotizacion(client).json()
-    r = client.post(
-        "/api/t/demo/reservas",
-        json={"cotizacion_id": cot["cotizacion_id"], "nombre": "Ana",
-              "telefono": "600111222"},
-    ).json()
+    r = reservar_directa(client, db, cot["cotizacion_id"], nombre="Ana")
     pagina = client.get(f"/r/{r['reserva_token']}")
     assert "Qué tal fue el viaje" not in pagina.text
     client.post(f"/r/{r['reserva_token']}/valorar", data={"puntuacion": 5})

@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -59,6 +59,7 @@ def viaje_form(request: Request, db: Session = Depends(get_db)):
 @router.post("/viaje", response_class=HTMLResponse)
 def viaje_solicitar(
     request: Request,
+    background: BackgroundTasks,
     origen: str = Form(...),
     destino: str = Form(...),
     fecha_hora: str = Form(...),
@@ -100,9 +101,9 @@ def viaje_solicitar(
             {"valores": valores, "error": str(e),
              "usuario": usuario_sesion(request, db)},
         )
-    from app.services.notificaciones import avisar_bolsa_nueva_solicitud
+    from app.services.notificaciones import tarea_avisar_bolsa
 
-    avisar_bolsa_nueva_solicitud(db, sender, telegram, solicitud)
+    background.add_task(tarea_avisar_bolsa, solicitud.id, sender, telegram)
     return RedirectResponse(f"/s/{solicitud.token_publico}", status_code=303)
 
 

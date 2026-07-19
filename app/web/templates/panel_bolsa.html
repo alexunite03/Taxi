@@ -16,6 +16,42 @@
   </form>
 </header>
 
+{% if pendientes %}
+<h2>Reservas pendientes de tu confirmación</h2>
+<p class="sub">Reservas directas de tu web. El pasajero ha visto el precio
+máximo; confírmalo o mejóralo con un descuento.</p>
+<ul class="lista-reservas">
+  {% for s in pendientes %}
+  <li class="reserva">
+    <strong>{{ s.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong><br>
+    {{ s.origen_texto }} → {{ s.destino_texto }}<br>
+    Precio máximo: <strong>{{ s.precio_estimado }} €</strong> · {{ s.nombre }}
+    ({{ s.telefono }})
+    <div class="fila" style="margin-top:.5rem;align-items:flex-end;gap:.75rem">
+      <form method="post" action="/panel/solicitudes/{{ s.id }}/aceptar" class="fila"
+            style="align-items:flex-end;gap:.75rem">
+        <div class="campo" style="margin:.25rem 0">
+          <label for="pdesc-{{ s.id }}">Descuento</label>
+          <select id="pdesc-{{ s.id }}" name="descuento_pct">
+            {% for pct in [0, 5, 10, 15, 20, 25, 30] %}
+            <option value="{{ pct }}" {{ 'selected' if tenant.descuento_pct == pct }}>
+              {{ 'Sin descuento' if pct == 0 else pct ~ ' %' }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <input type="hidden" name="recogida_eur" value="{{ tenant.recogida_eur }}">
+        <button type="submit" class="principal" style="width:auto">✅ Aceptar</button>
+      </form>
+      <form method="post" action="/panel/solicitudes/{{ s.id }}/rechazar"
+            onsubmit="return confirm('¿Rechazar esta reserva? Avisaremos al pasajero.')">
+        <button type="submit" class="peligro" style="width:auto">❌ Rechazar</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
 {% if not tenant.disponible_bolsa %}
 <p class="aviso">Tienes la bolsa desactivada: no ves las solicitudes abiertas.</p>
 {% else %}

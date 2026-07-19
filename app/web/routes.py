@@ -5,7 +5,7 @@ Progresivamente mejorable con HTMX en fase 2 sin tocar los servicios.
 """
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -21,14 +21,9 @@ from app.services.cotizaciones import (
     ErrorCotizacion,
     crear_cotizacion,
 )
-from app.services.notificaciones import (
-    notificar_cancelacion,
-    notificar_confirmacion,
-    notificar_taxista_reserva,
-)
+from app.services.notificaciones import notificar_cancelacion
 from app.services.reservas import (
     ErrorReserva,
-    aceptar_reserva,
     cancelar_reserva,
     reserva_por_token,
 )
@@ -177,6 +172,7 @@ def cotizar_web(
 @router.post("/t/{slug}/reservar", response_class=HTMLResponse)
 def reservar_web(
     request: Request,
+    background: BackgroundTasks,
     cotizacion_id: str = Form(...),
     nombre: str = Form(...),
     telefono: str = Form(...),
@@ -187,20 +183,25 @@ def reservar_web(
     sender=Depends(email_sender),
     telegram=Depends(telegram_sender),
 ):
+    """El pasajero solicita la reserva al precio máximo de la oferta; la
+    reserva y el justificante se crean cuando el taxista acepta (panel o
+    Telegram). El aviso al taxista sale en segundo plano."""
+    from app.services.bolsa import ErrorBolsa, solicitar_reserva_directa
+    from app.services.notificaciones import tarea_solicitud_directa
+
     limitar_por_ip(request)
     comprobar_honeypot(website)
     try:
-        reserva = aceptar_reserva(
+        solicitud = solicitar_reserva_directa(
             db, tenant, cotizacion_id, nombre.strip(), telefono.strip(), email or None
         )
-    except ErrorReserva as e:
+    except (ErrorBolsa, ErrorCotizacion) as e:
         return templates.TemplateResponse(
             request, "t_form.html",
             {"tenant": tenant, "valores": {}, "error": str(e)},
         )
-    notificar_confirmacion(db, sender, reserva)
-    notificar_taxista_reserva(db, sender, telegram, reserva)
-    return RedirectResponse(f"/r/{reserva.token_publico}", status_code=303)
+    background.add_task(tarea_solicitud_directa, solicitud.id, sender, telegram)
+    return RedirectResponse(f"/s/{solicitud.token_publico}", status_code=303)
 
 
 @router.get("/r/{token}", response_class=HTMLResponse)

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     route_provider: str = "osm"
     google_maps_api_key: str = ""
     nominatim_url: str = "https://nominatim.openstreetmap.org"
+    photon_url: str = "https://photon.komoot.io"
     osrm_url: str = "https://router.project-osrm.org"
 
     # Caducidad de la cotización (plan §3): 15 minutos

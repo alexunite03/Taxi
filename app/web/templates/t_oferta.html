@@ -10,7 +10,7 @@
 
   <section class="panel-reserva" aria-label="Tu oferta">
     <div class="tarjeta-precio">
-      <div class="meta">Precio cerrado · IVA incluido</div>
+      <div class="meta">Precio máximo · IVA incluido</div>
       <div class="importe">{{ cot.precio }} €</div>
       <div class="meta">{{ cot.dist_km }} km ·
         {{ cot.fecha_hora_recogida.strftime('%d/%m/%Y') }} a las
@@ -48,7 +48,10 @@
 
     {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 
-    <h2>Confirma tu reserva</h2>
+    <h2>Solicita tu reserva</h2>
+    <p class="ayuda">Este es el precio máximo. {{ tenant.nombre.split()[0] }}
+    confirmará tu reserva (puede incluso mejorarte el precio) y te avisaremos
+    al momento.</p>
     <form method="post" action="/t/{{ tenant.slug }}/reservar" novalidate>
       <input type="hidden" name="cotizacion_id" value="{{ cot.id }}">
       <div class="campo">
@@ -70,7 +73,7 @@
         <label for="website">No rellenes este campo</label>
         <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
       </div>
-      <button type="submit" class="principal">Aceptar reserva · {{ cot.precio }} €</button>
+      <button type="submit" class="principal">Solicitar reserva · máx. {{ cot.precio }} €</button>
       <p style="margin-top:.6rem"><a class="secundario" style="width:100%"
          href="/t/{{ tenant.slug }}">Modificar viaje</a></p>
     </form>

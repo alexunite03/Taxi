@@ -53,7 +53,7 @@ def test_publicar_solicitud_y_pagina_de_espera(client, db):
     pagina = client.get(f"/s/{token}")
     assert pagina.status_code == 200
     assert "Buscando taxista" in pagina.text
-    assert "Precio cerrado estimado" in pagina.text
+    assert "Precio máximo" in pagina.text
 
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
     assert solicitud.estado == "abierta"

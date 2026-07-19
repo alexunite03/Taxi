@@ -7,7 +7,7 @@ import re
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -144,6 +144,7 @@ def panel(request: Request, db: Session = Depends(get_db)):
 @router.post("/intermediario/pedir", response_class=HTMLResponse)
 def pedir_taxi(
     request: Request,
+    background: BackgroundTasks,
     cliente_nombre: str = Form(...),
     cliente_telefono: str = Form(...),
     origen: str = Form(...),
@@ -197,7 +198,7 @@ def pedir_taxi(
                          "origen": origen, "destino": destino,
                          "fecha_hora": fecha_hora}},
         )
-    from app.services.notificaciones import avisar_bolsa_nueva_solicitud
+    from app.services.notificaciones import tarea_avisar_bolsa
 
-    avisar_bolsa_nueva_solicitud(db, sender, telegram, solicitud)
+    background.add_task(tarea_avisar_bolsa, solicitud.id, sender, telegram)
     return RedirectResponse("/intermediario", status_code=303)

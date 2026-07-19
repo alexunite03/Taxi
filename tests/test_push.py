@@ -27,7 +27,7 @@ def suscribir(client, token, suscripcion=None):
 
 
 def test_alta_idempotente_por_endpoint(client, db, espia):  # noqa: F811
-    cuerpo = reservar(client, email=None)
+    cuerpo = reservar(client, db, email=None)
     assert suscribir(client, cuerpo["reserva_token"]).status_code == 200
     assert suscribir(client, cuerpo["reserva_token"]).status_code == 200
     filas = db.execute(select(PushSuscripcion)).scalars().all()
@@ -35,9 +35,9 @@ def test_alta_idempotente_por_endpoint(client, db, espia):  # noqa: F811
     assert filas[0].endpoint == SUSCRIPCION["endpoint"]
 
 
-def test_alta_con_token_falso_o_datos_invalidos(client, espia):  # noqa: F811
+def test_alta_con_token_falso_o_datos_invalidos(client, db, espia):  # noqa: F811
     assert suscribir(client, "token-inventado").status_code == 404
-    cuerpo = reservar(client, email=None)
+    cuerpo = reservar(client, db, email=None)
     r = suscribir(client, cuerpo["reserva_token"], {"endpoint": "http://inseguro", "keys": {}})
     assert r.status_code == 422
 
@@ -49,7 +49,7 @@ def test_clave_publica_vacia_en_desarrollo(client):
 
 
 def test_cancelacion_envia_push(client, db, espia):  # noqa: F811
-    cuerpo = reservar(client, email=None)
+    cuerpo = reservar(client, db, email=None)
     suscribir(client, cuerpo["reserva_token"])
     client.post(f"/api/reservas/{cuerpo['reserva_token']}/cancelar")
 
@@ -66,7 +66,7 @@ def test_cancelacion_envia_push(client, db, espia):  # noqa: F811
 
 
 def test_recordatorio_envia_push_y_email(client, db, espia):  # noqa: F811
-    cuerpo = reservar(client, email="ana@example.com")
+    cuerpo = reservar(client, db, email="ana@example.com")
     suscribir(client, cuerpo["reserva_token"])
     espia.enviados.clear()
 
@@ -89,7 +89,7 @@ def test_suscripcion_caducada_se_borra(client, db, espia):  # noqa: F811
         def enviar(self, suscripcion, mensaje):
             raise SuscripcionCaducada("410 Gone")
 
-    cuerpo = reservar(client, email=None)
+    cuerpo = reservar(client, db, email=None)
     suscribir(client, cuerpo["reserva_token"])
     app.state.push_sender = PushCaducado()
 

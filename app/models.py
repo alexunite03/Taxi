@@ -296,9 +296,19 @@ class SolicitudViaje(Base):
     intermediario_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("intermediarios.id"), nullable=True
     )
+    # Si apunta a un taxista, es una reserva directa pendiente de que ESE
+    # taxista la acepte (no sale en la bolsa general)
+    tenant_destino_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tenants.id"), nullable=True
+    )
+    # Cotización de origen de una reserva directa: impide solicitar dos
+    # veces la misma oferta
+    cotizacion_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cotizaciones.id"), nullable=True
+    )
 
     precio_estimado: Mapped[float] = mapped_column(Numeric(7, 2))
-    estado: Mapped[str] = mapped_column(String(15), default="abierta")  # abierta | asignada | cancelada
+    estado: Mapped[str] = mapped_column(String(15), default="abierta")  # abierta | asignada | cancelada | rechazada
     reserva_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("reservas.id"), nullable=True
     )
@@ -306,6 +316,9 @@ class SolicitudViaje(Base):
 
     reserva: Mapped["Reserva | None"] = relationship()
     intermediario: Mapped["Intermediario | None"] = relationship()
+    tenant_destino: Mapped["Tenant | None"] = relationship(
+        foreign_keys=[tenant_destino_id]
+    )
 
 
 class Valoracion(Base):

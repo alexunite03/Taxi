@@ -221,7 +221,7 @@ def bolsa_pagina(
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
 ):
-    from app.services.bolsa import con_distancia
+    from app.services.bolsa import con_distancia, solicitudes_pendientes_de
 
     solicitudes = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
     if solicitudes and lat is not None and lng is not None:
@@ -230,6 +230,7 @@ def bolsa_pagina(
         request,
         "panel_bolsa.html",
         {"tenant": tenant, "solicitudes": solicitudes,
+         "pendientes": solicitudes_pendientes_de(db, tenant),
          "con_ubicacion": lat is not None and lng is not None},
     )
 
@@ -343,4 +344,22 @@ def aceptar_viaje(
     from app.services.notificaciones import notificar_confirmacion
 
     notificar_confirmacion(db, sender, reserva)
+    return RedirectResponse("/panel/bolsa", status_code=303)
+
+
+@router.post("/solicitudes/{solicitud_id}/rechazar")
+def rechazar_viaje(
+    solicitud_id: uuid.UUID,
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+):
+    from app.services.bolsa import rechazar_solicitud
+    from app.services.notificaciones import notificar_rechazo_pasajero
+
+    try:
+        solicitud = rechazar_solicitud(db, tenant, solicitud_id)
+    except ErrorBolsa as e:
+        raise HTTPException(422, str(e))
+    notificar_rechazo_pasajero(db, sender, solicitud)
     return RedirectResponse("/panel/bolsa", status_code=303)

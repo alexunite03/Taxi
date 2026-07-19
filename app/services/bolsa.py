@@ -49,7 +49,13 @@ def crear_solicitud(
     origen_lugar: Lugar | None = None,
     destino_lugar: Lugar | None = None,
     intermediario_id=None,
+    tenant_destino_id=None,
+    precio_estimado=None,
+    cotizacion_id=None,
 ) -> SolicitudViaje:
+    """`tenant_destino_id`: reserva directa que debe aceptar ese taxista.
+    `precio_estimado`: si viene de una cotización ya calculada (precio
+    máximo mostrado al pasajero), se usa tal cual sin recalcular ruta."""
     ahora = datetime.now(timezone.utc)
     if fecha_hora_recogida.tzinfo is None:
         raise AntelacionInvalida("La fecha de recogida necesita zona horaria")
@@ -62,18 +68,22 @@ def crear_solicitud(
             f"Solo aceptamos solicitudes hasta {ANTELACION_MAX_DIAS} días vista"
         )
 
-    try:
-        origen = origen_lugar or _geocodificar(geocoder, "origen", origen_texto)
-        destino = destino_lugar or _geocodificar(geocoder, "destino", destino_texto)
-        ruta = rutas.calcular(origen, destino, fecha_hora_recogida, con_peaje=False)
-    except ErrorCotizacion:
-        raise
-    except Exception:
-        raise ServicioNoDisponible()
+    if precio_estimado is None:
+        try:
+            origen = origen_lugar or _geocodificar(geocoder, "origen", origen_texto)
+            destino = destino_lugar or _geocodificar(geocoder, "destino", destino_texto)
+            ruta = rutas.calcular(origen, destino, fecha_hora_recogida, con_peaje=False)
+        except ErrorCotizacion:
+            raise
+        except Exception:
+            raise ServicioNoDisponible()
 
-    # Estimación con las tarifas oficiales (iguales para todos los taxistas);
-    # el precio definitivo lo emite el taxista que acepte, con su motor.
-    estimacion = precio_cerrado(ruta.tramos, fecha_hora_recogida, peaje=Decimal("0"))
+        # Estimación con las tarifas oficiales (iguales para todos);
+        # el precio definitivo lo emite el taxista que acepte, con su motor.
+        estimacion = precio_cerrado(ruta.tramos, fecha_hora_recogida, peaje=Decimal("0"))
+        precio_estimado = estimacion.precio
+    else:
+        origen, destino = origen_lugar, destino_lugar
 
     solicitud = SolicitudViaje(
         token_publico=secrets.token_urlsafe(24),
@@ -87,8 +97,10 @@ def crear_solicitud(
         destino_lat=destino.lat,
         destino_lng=destino.lng,
         fecha_hora_recogida=fecha_hora_recogida,
-        precio_estimado=estimacion.precio,
+        precio_estimado=precio_estimado,
         intermediario_id=intermediario_id,
+        tenant_destino_id=tenant_destino_id,
+        cotizacion_id=cotizacion_id,
     )
     db.add(solicitud)
     db.commit()
@@ -96,12 +108,100 @@ def crear_solicitud(
     return solicitud
 
 
+def solicitar_reserva_directa(
+    db: Session, tenant: Tenant, cotizacion_id, nombre: str, telefono: str,
+    email: str | None,
+) -> SolicitudViaje:
+    """El pasajero pide la reserva al precio máximo de su cotización. No se
+    crea reserva ni justificante todavía: queda pendiente hasta que el
+    taxista la acepte (desde el panel o los botones de Telegram)."""
+    import uuid
+
+    from app.models import Cotizacion
+
+    try:
+        cot_uuid = uuid.UUID(str(cotizacion_id))
+    except ValueError:
+        raise ErrorBolsa("La cotización no existe")
+    cot = db.execute(
+        select(Cotizacion).where(
+            Cotizacion.id == cot_uuid, Cotizacion.tenant_id == tenant.id
+        )
+    ).scalar_one_or_none()
+    if cot is None:
+        raise ErrorBolsa("La cotización no existe")
+    expira = cot.expira_en
+    if expira.tzinfo is None:  # SQLite pierde el tzinfo
+        expira = expira.replace(tzinfo=timezone.utc)
+    if expira < datetime.now(timezone.utc):
+        raise ErrorBolsa("La oferta ha caducado (15 minutos). Vuelve a pedir precio.")
+
+    from app.models import ClienteFinal, Reserva
+
+    previa = db.execute(
+        select(SolicitudViaje.estado).where(
+            SolicitudViaje.cotizacion_id == cot.id,
+            SolicitudViaje.estado.in_(("abierta", "asignada")),
+        )
+    ).scalars().first()
+    if previa == "asignada":
+        raise ErrorBolsa(
+            "Esta oferta ya se convirtió en una reserva. Pide un precio nuevo."
+        )
+    if previa is not None:
+        raise ErrorBolsa(
+            "Ya has solicitado esta reserva; espera la respuesta del taxista."
+        )
+
+    from sqlalchemy import func
+
+    from app.config import settings
+
+    activas = db.execute(
+        select(func.count())
+        .select_from(Reserva)
+        .join(ClienteFinal, Reserva.cliente_id == ClienteFinal.id)
+        .where(
+            Reserva.tenant_id == tenant.id,
+            ClienteFinal.telefono == telefono.strip(),
+            Reserva.estado.in_(("aceptada", "recordada")),
+        )
+    ).scalar_one()
+    if activas >= settings.max_reservas_activas_por_telefono:
+        raise ErrorBolsa(
+            "Has alcanzado el máximo de reservas activas con este teléfono. "
+            "Llama al taxista para gestionarlo."
+        )
+
+    recogida = cot.fecha_hora_recogida
+    if recogida.tzinfo is None:  # SQLite: hora de Madrid
+        from app.pricing.motor import TZ_MADRID
+
+        recogida = recogida.replace(tzinfo=TZ_MADRID)
+
+    return crear_solicitud(
+        db, None, None,
+        nombre=nombre,
+        telefono=telefono,
+        email=email,
+        origen_texto=cot.origen_texto,
+        destino_texto=cot.destino_texto,
+        fecha_hora_recogida=recogida,
+        origen_lugar=Lugar(cot.origen_texto, cot.origen_lat, cot.origen_lng),
+        destino_lugar=Lugar(cot.destino_texto, cot.destino_lat, cot.destino_lng),
+        tenant_destino_id=tenant.id,
+        precio_estimado=cot.precio,
+        cotizacion_id=cot.id,
+    )
+
+
 def solicitudes_abiertas(db: Session) -> list[SolicitudViaje]:
     ahora = datetime.now(timezone.utc)
     abiertas = (
         db.execute(
             select(SolicitudViaje)
-            .where(SolicitudViaje.estado == "abierta")
+            .where(SolicitudViaje.estado == "abierta",
+                   SolicitudViaje.tenant_destino_id.is_(None))
             .order_by(SolicitudViaje.fecha_hora_recogida)
         )
         .scalars()
@@ -148,6 +248,20 @@ def con_distancia(
     return sorted(solicitudes, key=lambda s: s.distancia_km)
 
 
+def solicitudes_pendientes_de(db: Session, tenant: Tenant) -> list[SolicitudViaje]:
+    """Reservas directas esperando la aceptación de este taxista."""
+    return (
+        db.execute(
+            select(SolicitudViaje)
+            .where(SolicitudViaje.estado == "abierta",
+                   SolicitudViaje.tenant_destino_id == tenant.id)
+            .order_by(SolicitudViaje.fecha_hora_recogida)
+        )
+        .scalars()
+        .all()
+    )
+
+
 def solicitud_por_token(db: Session, token: str) -> SolicitudViaje | None:
     return db.execute(
         select(SolicitudViaje).where(SolicitudViaje.token_publico == token)
@@ -174,6 +288,8 @@ def aceptar_solicitud(
         raise ErrorBolsa("La solicitud no existe")
     if solicitud.estado != "abierta":
         raise ViajeYaAsignado()
+    if solicitud.tenant_destino_id and solicitud.tenant_destino_id != tenant.id:
+        raise ErrorBolsa("Esta solicitud es de otro taxista")
 
     # Se marca ya como asignada: el commit interno de aceptar_reserva la
     # persistirá junto con la reserva y soltará el bloqueo sin ventana para
@@ -213,3 +329,19 @@ def aceptar_solicitud(
     db.commit()
     db.refresh(reserva)
     return solicitud, reserva
+
+
+def rechazar_solicitud(db: Session, tenant: Tenant, solicitud_id) -> SolicitudViaje:
+    """Solo el taxista destinatario puede rechazar una reserva directa."""
+    solicitud = db.execute(
+        select(SolicitudViaje).where(SolicitudViaje.id == solicitud_id).with_for_update()
+    ).scalar_one_or_none()
+    if solicitud is None:
+        raise ErrorBolsa("La solicitud no existe")
+    if solicitud.tenant_destino_id != tenant.id:
+        raise ErrorBolsa("Esta solicitud no es tuya")
+    if solicitud.estado != "abierta":
+        raise ViajeYaAsignado()
+    solicitud.estado = "rechazada"
+    db.commit()
+    return solicitud

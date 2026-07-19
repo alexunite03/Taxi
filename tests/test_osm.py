@@ -1,11 +1,11 @@
-"""Tests de los proveedores OSM (Nominatim/OSRM) con respuestas simuladas."""
+"""Tests de los proveedores OSM (Photon/Nominatim/OSRM) con respuestas simuladas."""
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import httpx
 
 from app.routing.base import Lugar
-from app.routing.osm import NominatimGeocoder, OSRMRouteProvider
+from app.routing.osm import NominatimGeocoder, OSRMRouteProvider, PhotonGeocoder
 
 NOMINATIM_RESPUESTA = [
     {"display_name": "Calle de Alcalá 200, Madrid", "lat": "40.4300", "lon": "-3.6500"},
@@ -56,6 +56,57 @@ def test_nominatim_devuelve_opciones_y_cachea(monkeypatch):
     # Segunda llamada igual: sale de caché, sin petición HTTP
     geo.geocodificar("calle de alcalá 200")
     assert len(llamadas) == 1
+
+
+PHOTON_RESPUESTA = {
+    "features": [
+        {
+            "geometry": {"coordinates": [-3.7031, 40.4200]},
+            "properties": {"name": "Gran Vía", "city": "Madrid",
+                           "state": "Comunidad de Madrid"},
+        },
+        {
+            "geometry": {"coordinates": [-3.7050, 40.4210]},
+            "properties": {"name": "Gran Vía 32", "street": "Gran Vía",
+                           "housenumber": "32", "district": "Centro",
+                           "city": "Madrid"},
+        },
+        {"geometry": {}, "properties": {"name": "Sin coordenadas"}},
+    ]
+}
+
+
+def test_photon_autocompleta_con_sesgo_a_madrid(monkeypatch):
+    llamadas = []
+
+    def falso_get(url, **kwargs):
+        llamadas.append((url, kwargs.get("params", {})))
+        return _respuesta(PHOTON_RESPUESTA)
+
+    monkeypatch.setattr(httpx, "get", falso_get)
+    geo = PhotonGeocoder("https://photon.example")
+
+    lugares = geo.geocodificar("gran vi")  # texto a medias, estilo autocompletar
+    assert [l.texto for l in lugares] == [
+        "Gran Vía, Madrid, Comunidad de Madrid",
+        "Gran Vía 32, Centro, Madrid",
+    ]
+    assert lugares[0].lat == 40.42 and lugares[0].lng == -3.7031
+    # Sesgo a Madrid en la petición
+    _, params = llamadas[0]
+    assert params["lat"] == 40.4168 and params["lon"] == -3.7038
+
+    # Caché: repetir no vuelve a llamar
+    geo.geocodificar("Gran Vi")
+    assert len(llamadas) == 1
+
+
+def test_photon_reverse(monkeypatch):
+    monkeypatch.setattr(httpx, "get", lambda url, **kw: _respuesta(PHOTON_RESPUESTA))
+    geo = PhotonGeocoder("https://photon.example")
+    lugar = geo.invertir(40.42, -3.7031)
+    assert lugar.texto.startswith("Gran Vía")
+    assert lugar.lat == 40.42
 
 
 def test_osrm_convierte_pasos_en_tramos_y_da_geometria(monkeypatch):

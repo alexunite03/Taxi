@@ -24,9 +24,16 @@ HOTEL = {
 class TelegramEspia:
     def __init__(self):
         self.enviados: list[tuple[str, str]] = []
+        self.botones: list = []  # botones del último enviar con teclado
+        self.callbacks: list[tuple[str, str]] = []
 
-    def enviar(self, chat_id: str, texto: str) -> None:
+    def enviar(self, chat_id: str, texto: str, botones=None) -> None:
         self.enviados.append((chat_id, texto))
+        if botones:
+            self.botones = botones
+
+    def responder_callback(self, callback_id: str, texto: str = "") -> None:
+        self.callbacks.append((callback_id, texto))
 
 
 def con_telegram_espia():
@@ -81,10 +88,18 @@ def test_aviso_al_taxista_por_email_y_telegram(client, db, espia):  # noqa: F811
             "cotizacion_id": cot["cotizacion_id"], "nombre": "Eva",
             "telefono": "600555444"})
 
-        assert any(e.para == "demo@example.com" and "Nueva reserva" in e.asunto
+        # El taxista recibe la reserva PENDIENTE con la hoja de ruta y los
+        # botones para aceptar (con descuento) o rechazar
+        assert any(e.para == "demo@example.com" and "pendiente" in e.asunto
                    for e in espia.enviados)
         tg = app.state.telegram_sender.enviados
-        assert len(tg) == 1 and tg[0][0] == "12345678" and "🚕" in tg[0][1]
+        assert len(tg) == 1 and tg[0][0] == "12345678"
+        assert "pendiente" in tg[0][1] and "🟢 Recogida" in tg[0][1]
+        botones = app.state.telegram_sender.botones
+        textos = [b["texto"] for fila in botones for b in fila]
+        assert any("Aceptar" in t for t in textos)
+        assert any("Rechazar" in t for t in textos)
+        assert any("−10 %" in t for t in textos)
     finally:
         app.state.telegram_sender = original
 

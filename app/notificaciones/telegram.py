@@ -12,24 +12,57 @@ import httpx
 
 
 class TelegramSender(Protocol):
-    def enviar(self, chat_id: str, texto: str) -> None:
-        """Lanza excepción si el envío falla; el llamante decide qué hacer."""
+    def enviar(self, chat_id: str, texto: str, botones: list | None = None) -> None:
+        """`botones`: filas de botones inline, cada botón
+        {"texto": ..., "datos": ...} (callback) o {"texto": ..., "url": ...}.
+        Lanza excepción si el envío falla; el llamante decide qué hacer."""
+        ...
+
+    def responder_callback(self, callback_id: str, texto: str = "") -> None:
+        """Cierra el «relojito» del botón pulsado."""
         ...
 
 
+def _teclado(botones: list | None) -> dict | None:
+    if not botones:
+        return None
+    filas = []
+    for fila in botones:
+        filas.append([
+            {"text": b["texto"], "url": b["url"]} if "url" in b
+            else {"text": b["texto"], "callback_data": b["datos"]}
+            for b in fila
+        ])
+    return {"inline_keyboard": filas}
+
+
 class ConsoleTelegramSender:
-    def enviar(self, chat_id: str, texto: str) -> None:
-        print(f"TELEGRAM (console) chat_id={chat_id} texto={texto!r}", flush=True)
+    def enviar(self, chat_id: str, texto: str, botones: list | None = None) -> None:
+        extra = f" botones={botones}" if botones else ""
+        print(f"TELEGRAM (console) chat_id={chat_id} texto={texto!r}{extra}", flush=True)
+
+    def responder_callback(self, callback_id: str, texto: str = "") -> None:
+        print(f"TELEGRAM (console) callback={callback_id} texto={texto!r}", flush=True)
 
 
 class BotTelegramSender:
     def __init__(self, token: str):
-        self.url = f"https://api.telegram.org/bot{token}/sendMessage"
+        self.base = f"https://api.telegram.org/bot{token}"
 
-    def enviar(self, chat_id: str, texto: str) -> None:
-        resp = httpx.post(
-            self.url,
-            json={"chat_id": chat_id, "text": texto, "disable_web_page_preview": True},
-            timeout=10,
-        )
+    def enviar(self, chat_id: str, texto: str, botones: list | None = None) -> None:
+        cuerpo = {"chat_id": chat_id, "text": texto, "disable_web_page_preview": True}
+        teclado = _teclado(botones)
+        if teclado:
+            cuerpo["reply_markup"] = teclado
+        resp = httpx.post(f"{self.base}/sendMessage", json=cuerpo, timeout=10)
         resp.raise_for_status()
+
+    def responder_callback(self, callback_id: str, texto: str = "") -> None:
+        try:
+            httpx.post(
+                f"{self.base}/answerCallbackQuery",
+                json={"callback_query_id": callback_id, "text": texto[:180]},
+                timeout=10,
+            )
+        except Exception:
+            pass  # cosmético: no debe romper el flujo

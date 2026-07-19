@@ -51,6 +51,8 @@ _COLUMNAS_NUEVAS = [
     ("tenants", "ubicacion_lng", "FLOAT"),
     ("tenants", "ubicacion_en", "TIMESTAMP WITH TIME ZONE"),
     ("tenants", "radio_km", "FLOAT"),
+    ("solicitudes_viaje", "tenant_destino_id", "UUID"),
+    ("solicitudes_viaje", "cotizacion_id", "UUID"),
 ]
 
 
@@ -67,6 +69,8 @@ def _migrar(engine) -> None:
                 continue
             if engine.dialect.name == "sqlite" and "TIME ZONE" in tipo:
                 tipo = "TIMESTAMP"
+            if engine.dialect.name == "sqlite" and tipo == "UUID":
+                tipo = "CHAR(32)"
             conexion.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}"))
             print(f"Migración: añadida {tabla}.{columna}", flush=True)
 

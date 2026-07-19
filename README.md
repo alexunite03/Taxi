@@ -65,9 +65,19 @@ del servicio.
 - **PostgreSQL de serie**: driver psycopg incluido, URLs `postgres://` de
   Render/Heroku normalizadas automáticamente y `pool_pre_ping` activado.
 
+- **Reserva con confirmación del taxista**: la web muestra al pasajero solo
+  el **precio máximo**; la reserva queda pendiente hasta que el taxista la
+  acepta (puede aplicar un descuento) o la rechaza. El justificante se emite
+  al aceptar y el pasajero sigue el estado en su enlace `/s/{token}`.
 - **Avisos al taxista**: email y Telegram (Bot API gratuito; token global
   `TAXI_TELEGRAM_BOT_TOKEN`, cada taxista vincula su chat desde el perfil)
-  al recibir una reserva y cuando entra un viaje nuevo en la bolsa.
+  al recibir una reserva y cuando entra un viaje nuevo en la bolsa. Los
+  mensajes de Telegram llevan la **hoja de ruta** completa y **botones
+  inline** para aceptar (con descuento del 5 o 10 %) o rechazar sin salir
+  del chat. Los avisos salen en segundo plano: la reserva no espera al SMTP.
+- **Autocompletado con Photon** (komoot): búsqueda de calles pensada para
+  autocompletar (entiende «gran vi» a medias), con sesgo a Madrid y caché;
+  OSRM sigue calculando la ruta. `TAXI_PHOTON_URL` para instancia propia.
 - **Política de precios del taxista**: descuento comercial (0–30 %, legal
   porque el precio cerrado es un máximo) y suplemento de recogida entre 0 y
   el tope reglamentario de 5,00 €. Se configura en el perfil y puede

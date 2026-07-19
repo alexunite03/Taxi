@@ -43,6 +43,110 @@ AYUDA = (
 )
 
 
+def _procesar_callback(request: Request, db: Session, telegram, callback: dict) -> dict:
+    """Botones inline de una solicitud: `sol:<id>:a:<pct>` acepta el viaje
+    (con descuento opcional) y `sol:<id>:r` lo rechaza. El precio definitivo
+    lo pone el taxista al pulsar; el pasajero solo vio el precio máximo."""
+    import uuid
+
+    callback_id = callback.get("id") or ""
+    datos = callback.get("data") or ""
+    chat_id = str(
+        ((callback.get("message") or {}).get("chat") or {}).get("id")
+        or (callback.get("from") or {}).get("id")
+        or ""
+    )
+
+    def avisar(t: str) -> None:
+        telegram.responder_callback(callback_id, t)
+
+    partes = datos.split(":")
+    if len(partes) < 3 or partes[0] != "sol" or not chat_id:
+        avisar("")
+        return {"ok": True}
+
+    tenant = db.execute(
+        select(Tenant).where(Tenant.telegram_chat_id == chat_id)
+    ).scalar_one_or_none()
+    if tenant is None:
+        avisar("Este chat no está vinculado a ninguna cuenta.")
+        return {"ok": True}
+
+    try:
+        solicitud_id = uuid.UUID(partes[1])
+    except ValueError:
+        avisar("Botón no reconocido.")
+        return {"ok": True}
+
+    from app.services.bolsa import (
+        ErrorBolsa,
+        ViajeYaAsignado,
+        aceptar_solicitud,
+        rechazar_solicitud,
+    )
+    from app.services.notificaciones import (
+        hoja_de_ruta,
+        notificar_confirmacion,
+        notificar_rechazo_pasajero,
+    )
+
+    def responder_chat(t: str) -> None:
+        try:
+            telegram.enviar(chat_id, t)
+        except Exception:
+            logger.exception("No se pudo responder al chat %s", chat_id)
+
+    if partes[2] == "r":
+        try:
+            solicitud = rechazar_solicitud(db, tenant, solicitud_id)
+        except ViajeYaAsignado:
+            avisar("Este viaje ya no está pendiente.")
+            return {"ok": True}
+        except ErrorBolsa as e:
+            avisar(str(e))
+            return {"ok": True}
+        avisar("Viaje rechazado")
+        notificar_rechazo_pasajero(db, request.app.state.email_sender, solicitud)
+        responder_chat("❌ Viaje rechazado. Hemos avisado al pasajero para que "
+                       "busque otro taxista.")
+        return {"ok": True}
+
+    try:
+        pct = int(partes[3]) if len(partes) > 3 else 0
+    except ValueError:
+        pct = 0
+    if not (0 <= pct <= 30):
+        avisar("Descuento fuera de los límites (0–30 %).")
+        return {"ok": True}
+
+    try:
+        solicitud, reserva = aceptar_solicitud(
+            db, tenant, solicitud_id,
+            request.app.state.geocoder, request.app.state.rutas,
+            descuento_pct=pct if pct > 0 else None,
+        )
+    except ViajeYaAsignado:
+        avisar("Ya lo aceptó otro taxista.")
+        return {"ok": True}
+    except ErrorBolsa as e:
+        avisar(str(e))
+        return {"ok": True}
+    except Exception:
+        logger.exception("Fallo aceptando la solicitud %s desde Telegram", solicitud_id)
+        avisar("No se pudo aceptar el viaje. Inténtalo desde tu panel.")
+        return {"ok": True}
+
+    notificar_confirmacion(db, request.app.state.email_sender, reserva)
+    avisar("✅ Viaje aceptado")
+    extra = f" (descuento del {pct} %)" if pct else ""
+    responder_chat(
+        f"✅ Viaje aceptado por {reserva.precio_cerrado} €{extra}.\n\n"
+        f"{hoja_de_ruta(solicitud)}\n\n"
+        f"Justificante: {settings.base_url}/r/{reserva.token_publico}"
+    )
+    return {"ok": True}
+
+
 @router.post("/webhook")
 def webhook(
     request: Request,
@@ -54,6 +158,10 @@ def webhook(
         recibido = request.headers.get("x-telegram-bot-api-secret-token", "")
         if recibido != settings.telegram_webhook_secret:
             raise HTTPException(403, "Secreto del webhook incorrecto")
+
+    callback = update.get("callback_query")
+    if callback is not None:
+        return _procesar_callback(request, db, telegram, callback)
 
     mensaje = update.get("message") or update.get("edited_message") or {}
     chat_id = str((mensaje.get("chat") or {}).get("id") or "")

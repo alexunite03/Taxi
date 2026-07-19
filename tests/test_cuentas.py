@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from app.models import Tenant, Usuario
 
-from .test_api import fecha_recogida, pedir_cotizacion
+from .test_api import fecha_recogida, pedir_cotizacion, reservar_directa
 
 TAXISTA = {
     "nombre": "José Luis Gómez",
@@ -65,10 +65,8 @@ def test_registro_taxista_validaciones(client):
 def test_registro_usuario_y_mis_reservas(client, db):
     # Reserva hecha ANTES de registrarse, con el mismo teléfono
     cot = pedir_cotizacion(client).json()
-    client.post(
-        "/api/t/demo/reservas",
-        json={"cotizacion_id": cot["cotizacion_id"], "nombre": "Ana",
-              "telefono": USUARIO["telefono"]},
+    reservar_directa(
+        client, db, cot["cotizacion_id"], nombre="Ana", telefono=USUARIO["telefono"]
     )
 
     r = client.post("/registro/usuario", data=USUARIO, follow_redirects=False)

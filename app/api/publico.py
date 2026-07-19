@@ -2,7 +2,7 @@
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -16,15 +16,9 @@ from app.services.cotizaciones import (
     crear_cotizacion,
 )
 from app.config import settings
-from app.services.notificaciones import (
-    notificar_cancelacion,
-    notificar_confirmacion,
-    notificar_taxista_reserva,
-    suscribir_push,
-)
+from app.services.notificaciones import notificar_cancelacion, suscribir_push
 from app.services.reservas import (
     ErrorReserva,
-    aceptar_reserva,
     cancelar_reserva,
     reserva_por_token,
 )
@@ -168,28 +162,31 @@ def cotizar(
 def reservar(
     datos: ReservaIn,
     request: Request,
+    background: BackgroundTasks,
     tenant: Tenant = Depends(tenant_por_slug),
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
     telegram=Depends(telegram_sender),
 ):
+    """Crea una solicitud pendiente al precio máximo de la cotización; la
+    reserva y el justificante se emiten cuando el taxista acepta."""
+    from app.services.bolsa import ErrorBolsa, solicitar_reserva_directa
+    from app.services.notificaciones import tarea_solicitud_directa
+
     limitar_por_ip(request)
     comprobar_honeypot(datos.website)
     try:
-        reserva = aceptar_reserva(
+        solicitud = solicitar_reserva_directa(
             db, tenant, datos.cotizacion_id, datos.nombre, datos.telefono, datos.email
         )
-    except ErrorReserva as e:
+    except (ErrorBolsa, ErrorCotizacion) as e:
         raise HTTPException(422, str(e))
-    notificar_confirmacion(db, sender, reserva)
-    notificar_taxista_reserva(db, sender, telegram, reserva)
-    j = reserva.justificante
+    background.add_task(tarea_solicitud_directa, solicitud.id, sender, telegram)
     return {
-        "reserva_token": reserva.token_publico,
-        "enlace": f"/r/{reserva.token_publico}",
-        "precio_cerrado": str(reserva.precio_cerrado),
-        "justificante": {"serie": j.serie, "numero": j.numero},
-        "estado": reserva.estado,
+        "solicitud_token": solicitud.token_publico,
+        "enlace": f"/s/{solicitud.token_publico}",
+        "precio_maximo": str(solicitud.precio_estimado),
+        "estado": solicitud.estado,
     }
 
 

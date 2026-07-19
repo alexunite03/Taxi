@@ -189,6 +189,99 @@ def notificar_taxista_reserva(db: Session, sender, telegram, reserva: Reserva):
     db.commit()
 
 
+def hoja_de_ruta(solicitud) -> str:
+    """Resumen del viaje para el taxista (Telegram/email)."""
+    lineas = [
+        f"🕐 {solicitud.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M')}",
+        f"🟢 Recogida: {solicitud.origen_texto}",
+        f"🏁 Destino: {solicitud.destino_texto}",
+        f"💶 Precio máximo: {solicitud.precio_estimado} € (IVA incluido)",
+        f"👤 {solicitud.nombre} · {solicitud.telefono}",
+    ]
+    if solicitud.intermediario is not None:
+        lineas.append(f"🏨 Pedido por {solicitud.intermediario.nombre}")
+    return "\n".join(lineas)
+
+
+def _botones_solicitud(solicitud) -> list:
+    sid = str(solicitud.id)
+    return [
+        [{"texto": f"✅ Aceptar · {solicitud.precio_estimado} €",
+          "datos": f"sol:{sid}:a:0"}],
+        [{"texto": "💶 Aceptar con −5 %", "datos": f"sol:{sid}:a:5"},
+         {"texto": "💶 −10 %", "datos": f"sol:{sid}:a:10"}],
+        [{"texto": "❌ Rechazar", "datos": f"sol:{sid}:r"}]
+        if solicitud.tenant_destino_id else
+        [{"texto": "🌐 Ver bolsa", "url": f"{settings.base_url}/panel/bolsa"}],
+    ]
+
+
+def notificar_solicitud_directa(db: Session, sender, telegram, solicitud):
+    """Reserva directa: el taxista destinatario recibe la hoja de ruta con
+    botones para aceptar (con o sin descuento) o rechazar."""
+    tenant = solicitud.tenant_destino
+    if tenant is None:
+        return
+    hoja = hoja_de_ruta(solicitud)
+    try:
+        sender.enviar(Email(
+            para=tenant.email,
+            asunto=f"Reserva pendiente: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
+            html=("<p>Tienes una reserva pendiente de aceptar:</p>"
+                  f"<pre>{hoja}</pre>"
+                  f"<p><a href='{settings.base_url}/panel'>Aceptar o rechazar en tu panel</a></p>"),
+        ))
+    except Exception:
+        logger.exception("Fallo avisando reserva directa por email a %s", tenant.id)
+    if tenant.telegram_chat_id:
+        try:
+            telegram.enviar(
+                tenant.telegram_chat_id,
+                f"🚕 Reserva nueva pendiente de tu confirmación\n\n{hoja}",
+                botones=_botones_solicitud(solicitud),
+            )
+        except Exception:
+            logger.exception("Fallo avisando reserva directa por Telegram a %s", tenant.id)
+
+
+def notificar_rechazo_pasajero(db: Session, sender, solicitud):
+    if not solicitud.email:
+        return
+    try:
+        sender.enviar(Email(
+            para=solicitud.email,
+            asunto="Tu solicitud de taxi no ha podido ser atendida",
+            html=(f"<p>Hola {solicitud.nombre}: el taxista no puede atender tu "
+                  f"viaje del {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')}. "
+                  f"Puedes buscar otro taxista disponible aquí: "
+                  f"<a href='{settings.base_url}/viaje'>{settings.base_url}/viaje</a></p>"),
+        ))
+    except Exception:
+        logger.exception("Fallo avisando rechazo al pasajero %s", solicitud.id)
+
+
+# --- Envío en segundo plano (la petición del pasajero no espera al SMTP) ---
+
+def tarea_solicitud_directa(solicitud_id, sender, telegram):
+    from app.db import SessionLocal
+    from app.models import SolicitudViaje
+
+    with SessionLocal() as db:
+        solicitud = db.get(SolicitudViaje, solicitud_id)
+        if solicitud is not None:
+            notificar_solicitud_directa(db, sender, telegram, solicitud)
+
+
+def tarea_avisar_bolsa(solicitud_id, sender, telegram):
+    from app.db import SessionLocal
+    from app.models import SolicitudViaje
+
+    with SessionLocal() as db:
+        solicitud = db.get(SolicitudViaje, solicitud_id)
+        if solicitud is not None:
+            avisar_bolsa_nueva_solicitud(db, sender, telegram, solicitud)
+
+
 def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> int:
     """Avisa a los taxistas con la bolsa activada de que hay un viaje nuevo
     (email siempre, Telegram si tienen chat vinculado). Devuelve cuántos
@@ -236,7 +329,11 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
             logger.exception("Fallo avisando bolsa por email a %s", t.id)
         if t.telegram_chat_id:
             try:
-                telegram.enviar(t.telegram_chat_id, f"🚕 {texto}\n{settings.base_url}/panel/bolsa")
+                telegram.enviar(
+                    t.telegram_chat_id,
+                    f"🚕 {texto}\n\n{hoja_de_ruta(solicitud)}",
+                    botones=_botones_solicitud(solicitud),
+                )
                 enviados += 1
             except Exception:
                 logger.exception("Fallo avisando bolsa por Telegram a %s", t.id)

@@ -85,6 +85,70 @@ class NominatimGeocoder:
         return Lugar(texto=datos["display_name"], lat=lat, lng=lng)
 
 
+class PhotonGeocoder:
+    """Photon (komoot): buscador OSM pensado para autocompletar. Entiende
+    textos a medias («gran vi») mucho mejor que Nominatim y no necesita
+    API key. Reverse incluido."""
+
+    def __init__(self, base_url: str = "https://photon.komoot.io"):
+        self.base_url = base_url.rstrip("/")
+        self._cache: dict[str, tuple[float, list[Lugar]]] = {}
+
+    @staticmethod
+    def _texto(props: dict) -> str:
+        partes = [props.get("name")]
+        calle, numero = props.get("street"), props.get("housenumber")
+        direccion = f"{calle} {numero}".strip() if numero else calle
+        if calle and calle != props.get("name") and direccion != props.get("name"):
+            partes.append(direccion)
+        elif numero and props.get("name") and not calle:
+            partes[0] = f"{props['name']} {numero}"
+        for clave in ("district", "city", "state"):
+            v = props.get(clave)
+            if v and v not in partes:
+                partes.append(v)
+        return ", ".join(x for x in partes if x)
+
+    def geocodificar(self, texto: str) -> list[Lugar]:
+        clave = texto.strip().lower()
+        if not clave:
+            return []
+        en_cache = self._cache.get(clave)
+        if en_cache and time.monotonic() - en_cache[0] < _CACHE_TTL_S:
+            return en_cache[1]
+        resp = httpx.get(
+            f"{self.base_url}/api",
+            params={"q": texto, "limit": 5, "lang": "es",
+                    "lat": 40.4168, "lon": -3.7038,  # sesgo a Madrid
+                    "location_bias_scale": 0.4, "zoom": 12},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        lugares = []
+        for f in resp.json().get("features", []):
+            props = f.get("properties", {})
+            coords = f.get("geometry", {}).get("coordinates", [None, None])
+            if coords[0] is None:
+                continue
+            lugares.append(Lugar(texto=self._texto(props) or texto,
+                                 lat=float(coords[1]), lng=float(coords[0])))
+        self._cache[clave] = (time.monotonic(), lugares)
+        return lugares
+
+    def invertir(self, lat: float, lng: float) -> Lugar | None:
+        resp = httpx.get(
+            f"{self.base_url}/reverse",
+            params={"lat": lat, "lon": lng, "lang": "es"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        features = resp.json().get("features", [])
+        if not features:
+            return None
+        return Lugar(texto=self._texto(features[0].get("properties", {})) or f"{lat}, {lng}",
+                     lat=lat, lng=lng)
+
+
 class OSRMRouteProvider:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
