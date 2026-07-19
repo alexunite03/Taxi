@@ -1,7 +1,6 @@
 """Páginas de la bolsa de viajes (pasajero) y de taxistas favoritos."""
 from __future__ import annotations
 
-import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
@@ -27,18 +26,12 @@ from app.services.bolsa import (
     solicitud_por_token,
 )
 from app.services.cotizaciones import ErrorCotizacion
+from app.services.notificaciones import tarea_avisar_bolsa
 
 from .cuentas import usuario_sesion
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
-
-
-def _lugar(texto, lat, lng) -> Lugar | None:
-    try:
-        return Lugar(texto=texto.strip(), lat=float(lat), lng=float(lng))
-    except (TypeError, ValueError, AttributeError):
-        return None
 
 
 # --- Bolsa de viajes (pasajero) -------------------------------------------
@@ -92,8 +85,8 @@ def viaje_solicitar(
             nombre, telefono, email,
             origen, destino,
             parsear_fecha_recogida(fecha_hora),
-            origen_lugar=_lugar(origen, origen_lat, origen_lng),
-            destino_lugar=_lugar(destino, destino_lat, destino_lng),
+            origen_lugar=Lugar.opcional(origen, origen_lat, origen_lng),
+            destino_lugar=Lugar.opcional(destino, destino_lat, destino_lng),
         )
     except (ErrorCotizacion, ErrorBolsa) as e:
         return templates.TemplateResponse(
@@ -101,8 +94,6 @@ def viaje_solicitar(
             {"valores": valores, "error": str(e),
              "usuario": usuario_sesion(request, db)},
         )
-    from app.services.notificaciones import tarea_avisar_bolsa
-
     background.add_task(tarea_avisar_bolsa, solicitud.id, sender, telegram)
     return RedirectResponse(f"/s/{solicitud.token_publico}", status_code=303)
 

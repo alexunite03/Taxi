@@ -153,6 +153,103 @@ def _procesar_callback(request: Request, db: Session, telegram, callback: dict) 
     return {"ok": True}
 
 
+VINCULA = "Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram»."
+
+
+def _guardar_ubicacion(db, responder, tenant, ubicacion: dict, en_vivo: bool) -> None:
+    from datetime import datetime, timezone
+
+    from app.services.bolsa import radio_de
+
+    tenant.ubicacion_lat = float(ubicacion.get("latitude"))
+    tenant.ubicacion_lng = float(ubicacion.get("longitude"))
+    tenant.ubicacion_en = datetime.now(timezone.utc)
+    db.commit()
+    if not en_vivo:  # la ubicación en tiempo real se actualiza en silencio
+        responder(
+            f"📍 Ubicación guardada. Solo te avisaré de los viajes a menos "
+            f"de {radio_de(tenant):g} km (cámbialo con /radio, p. ej. "
+            "/radio 10). Envíame otra ubicación cuando cambies de zona, o "
+            "comparte tu ubicación en tiempo real y me actualizo solo."
+        )
+
+
+def _cmd_radio(db, responder, tenant, args: str) -> None:
+    from app.services.bolsa import radio_de
+
+    if not args:
+        responder(
+            f"Tu radio actual es de {radio_de(tenant):g} km. Para "
+            "cambiarlo escribe, por ejemplo: /radio 10"
+        )
+        return
+    try:
+        km = float(args.replace(",", "."))
+    except ValueError:
+        responder("No he entendido la distancia. Ejemplo: /radio 10")
+        return
+    if not (1 <= km <= 100):
+        responder("El radio debe estar entre 1 y 100 km.")
+        return
+    tenant.radio_km = km
+    db.commit()
+    extra = ("" if tenant.ubicacion_lat is not None
+             else " Envíame tu 📍 ubicación para activar el filtro.")
+    responder(f"✅ Radio guardado: solo viajes a menos de {km:g} km.{extra}")
+
+
+def _cmd_desconectar(db, responder, tenant, args: str) -> None:
+    tenant.disponible_bolsa = False
+    db.commit()
+    responder("🔴 Desconectado: no recibirás viajes de la bolsa. "
+              "Vuelve cuando quieras con /conectar.")
+
+
+def _cmd_conectar(db, responder, tenant, args: str) -> None:
+    tenant.disponible_bolsa = True
+    db.commit()
+    responder("🟢 Conectado: volverás a recibir los viajes de la bolsa. "
+              "Envíame tu 📍 ubicación para recibir solo los cercanos.")
+
+
+def _cmd_estado(db, responder, tenant, args: str) -> None:
+    from app.services.bolsa import radio_de
+
+    estado = "🟢 conectado" if tenant.disponible_bolsa else "🔴 desconectado"
+    if tenant.ubicacion_lat is not None:
+        zona = (f"📍 con ubicación guardada (aviso de viajes a menos de "
+                f"{radio_de(tenant):g} km)")
+    else:
+        zona = "sin ubicación: recibes todos los viajes de la bolsa"
+    responder(f"{tenant.nombre}: {estado} · {zona}")
+
+
+def _vincular_por_codigo(db, responder, chat_id: str, codigo: str) -> None:
+    tenant = db.execute(
+        select(Tenant).where(Tenant.telegram_codigo == codigo)
+    ).scalar_one_or_none()
+    if tenant is None:
+        responder("Ese enlace de vinculación no es válido o ya se usó. "
+                  "Genera uno nuevo desde tu panel → Mi perfil.")
+        return
+    tenant.telegram_chat_id = chat_id
+    tenant.telegram_codigo = None  # un solo uso
+    db.commit()
+    responder(
+        f"✅ Listo, {tenant.nombre.split()[0]}: este chat queda vinculado. "
+        "Recibirás aquí cada reserva nueva y los viajes de la bolsa."
+    )
+
+
+# Comandos que requieren un chat ya vinculado a un taxista
+_COMANDOS = {
+    "/radio": _cmd_radio,
+    "/desconectar": _cmd_desconectar,
+    "/conectar": _cmd_conectar,
+    "/estado": _cmd_estado,
+}
+
+
 @router.post("/webhook")
 def webhook(
     request: Request,
@@ -182,128 +279,35 @@ def webhook(
         except Exception:
             logger.exception("No se pudo responder al chat %s", chat_id)
 
-    def tenant_del_chat():
-        return db.execute(
-            select(Tenant).where(Tenant.telegram_chat_id == chat_id)
-        ).scalar_one_or_none()
+    comando, _, args = texto.partition(" ")
+    comando = comando.split("@", 1)[0]  # en grupos llega "/radio@mibot"
 
-    # 📍 Ubicación (normal o en tiempo real): modo Uber
-    if ubicacion is not None:
-        tenant = tenant_del_chat()
-        if tenant is None:
-            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
-            return {"ok": True}
-        from datetime import datetime, timezone
-
-        tenant.ubicacion_lat = float(ubicacion.get("latitude"))
-        tenant.ubicacion_lng = float(ubicacion.get("longitude"))
-        tenant.ubicacion_en = datetime.now(timezone.utc)
-        db.commit()
-        es_directo = "live_period" in ubicacion or update.get("edited_message")
-        if not es_directo:
-            from app.services.bolsa import radio_de
-
-            responder(
-                f"📍 Ubicación guardada. Solo te avisaré de los viajes a menos "
-                f"de {radio_de(tenant):g} km (cámbialo con /radio, p. ej. "
-                "/radio 10). Envíame otra ubicación cuando cambies de zona, o "
-                "comparte tu ubicación en tiempo real y me actualizo solo."
-            )
-        return {"ok": True}
-
-    if texto.startswith("/radio"):
-        tenant = tenant_del_chat()
-        if tenant is None:
-            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
-            return {"ok": True}
-        from app.services.bolsa import radio_de
-
-        partes = texto.split(maxsplit=1)
-        if len(partes) == 1:
-            responder(
-                f"Tu radio actual es de {radio_de(tenant):g} km. Para "
-                "cambiarlo escribe, por ejemplo: /radio 10"
-            )
-            return {"ok": True}
-        try:
-            km = float(partes[1].replace(",", "."))
-        except ValueError:
-            responder("No he entendido la distancia. Ejemplo: /radio 10")
-            return {"ok": True}
-        if not (1 <= km <= 100):
-            responder("El radio debe estar entre 1 y 100 km.")
-            return {"ok": True}
-        tenant.radio_km = km
-        db.commit()
-        extra = ("" if tenant.ubicacion_lat is not None
-                 else " Envíame tu 📍 ubicación para activar el filtro.")
-        responder(f"✅ Radio guardado: solo viajes a menos de {km:g} km.{extra}")
-        return {"ok": True}
-
-    if texto.startswith("/desconectar"):
-        tenant = tenant_del_chat()
-        if tenant is None:
-            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
-        else:
-            tenant.disponible_bolsa = False
-            db.commit()
-            responder("🔴 Desconectado: no recibirás viajes de la bolsa. "
-                      "Vuelve cuando quieras con /conectar.")
-        return {"ok": True}
-
-    if texto.startswith("/conectar"):
-        tenant = tenant_del_chat()
-        if tenant is None:
-            responder("Primero vincula tu cuenta: panel → Mi perfil → «Vincular Telegram».")
-        else:
-            tenant.disponible_bolsa = True
-            db.commit()
-            responder("🟢 Conectado: volverás a recibir los viajes de la bolsa. "
-                      "Envíame tu 📍 ubicación para recibir solo los cercanos.")
-        return {"ok": True}
-
-    if texto.startswith("/estado"):
-        tenant = tenant_del_chat()
-        if tenant is None:
-            responder("Este chat no está vinculado a ninguna cuenta. "
-                      "Panel → Mi perfil → «Vincular Telegram».")
-        else:
-            from app.services.bolsa import radio_de
-
-            estado = "🟢 conectado" if tenant.disponible_bolsa else "🔴 desconectado"
-            if tenant.ubicacion_lat is not None:
-                zona = (f"📍 con ubicación guardada (aviso de viajes a menos de "
-                        f"{radio_de(tenant):g} km)")
-            else:
-                zona = "sin ubicación: recibes todos los viajes de la bolsa"
-            responder(f"{tenant.nombre}: {estado} · {zona}")
-        return {"ok": True}
-
-    if texto.startswith("/start"):
-        partes = texto.split(maxsplit=1)
-        if len(partes) == 2:
-            codigo = partes[1].strip()
-            tenant = db.execute(
-                select(Tenant).where(Tenant.telegram_codigo == codigo)
-            ).scalar_one_or_none()
-            if tenant is not None:
-                tenant.telegram_chat_id = chat_id
-                tenant.telegram_codigo = None  # un solo uso
-                db.commit()
-                responder(
-                    f"✅ Listo, {tenant.nombre.split()[0]}: este chat queda "
-                    "vinculado. Recibirás aquí cada reserva nueva y los "
-                    "viajes de la bolsa."
-                )
-            else:
-                responder(
-                    "Ese enlace de vinculación no es válido o ya se usó. "
-                    "Genera uno nuevo desde tu panel → Mi perfil."
-                )
+    # Vinculación y ayuda: los únicos mensajes que no requieren cuenta
+    if comando == "/start":
+        codigo = args.strip()
+        if codigo:
+            _vincular_por_codigo(db, responder, chat_id, codigo)
         else:
             responder(AYUDA)
-    elif texto.startswith("/id"):
+        return {"ok": True}
+    if comando == "/id":
         responder(f"Tu chat ID es: {chat_id}\nPégalo en tu panel → Mi perfil.")
-    else:
+        return {"ok": True}
+
+    if ubicacion is None and comando not in _COMANDOS:
         responder(AYUDA)
+        return {"ok": True}
+
+    tenant = db.execute(
+        select(Tenant).where(Tenant.telegram_chat_id == chat_id)
+    ).scalar_one_or_none()
+    if tenant is None:
+        responder(VINCULA)
+        return {"ok": True}
+
+    if ubicacion is not None:  # 📍 normal o en tiempo real: modo Uber
+        en_vivo = "live_period" in ubicacion or bool(update.get("edited_message"))
+        _guardar_ubicacion(db, responder, tenant, ubicacion, en_vivo)
+    else:
+        _COMANDOS[comando](db, responder, tenant, args.strip())
     return {"ok": True}

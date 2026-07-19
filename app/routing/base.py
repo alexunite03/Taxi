@@ -19,6 +19,15 @@ class Lugar:
     lat: float
     lng: float
 
+    @classmethod
+    def opcional(cls, texto, lat, lng) -> Lugar | None:
+        """Construye un Lugar desde campos de formulario (strings sueltos del
+        autocompletar); None si faltan o no son coordenadas válidas."""
+        try:
+            return cls(texto=texto.strip(), lat=float(lat), lng=float(lng))
+        except (TypeError, ValueError, AttributeError):
+            return None
+
 
 @dataclass(frozen=True)
 class RutaCalculada:

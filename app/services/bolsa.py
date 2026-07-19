@@ -3,15 +3,19 @@ puede aceptar. El primero que acepta gana (bloqueo de fila) y la solicitud
 se convierte en una reserva normal con su justificante."""
 from __future__ import annotations
 
+import math
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import SolicitudViaje, Tenant
+from app.config import settings
+from app.models import ClienteFinal, Cotizacion, Reserva, SolicitudViaje, Tenant
 from app.pricing import precio_cerrado
+from app.pricing.motor import TZ_MADRID
 from app.routing import Geocoder, Lugar, RouteProvider
 
 from .cotizaciones import (
@@ -115,10 +119,6 @@ def solicitar_reserva_directa(
     """El pasajero pide la reserva al precio máximo de su cotización. No se
     crea reserva ni justificante todavía: queda pendiente hasta que el
     taxista la acepte (desde el panel o los botones de Telegram)."""
-    import uuid
-
-    from app.models import Cotizacion
-
     try:
         cot_uuid = uuid.UUID(str(cotizacion_id))
     except ValueError:
@@ -136,8 +136,6 @@ def solicitar_reserva_directa(
     if expira < datetime.now(timezone.utc):
         raise ErrorBolsa("La oferta ha caducado (15 minutos). Vuelve a pedir precio.")
 
-    from app.models import ClienteFinal, Reserva
-
     previa = db.execute(
         select(SolicitudViaje.estado).where(
             SolicitudViaje.cotizacion_id == cot.id,
@@ -152,10 +150,6 @@ def solicitar_reserva_directa(
         raise ErrorBolsa(
             "Ya has solicitado esta reserva; espera la respuesta del taxista."
         )
-
-    from sqlalchemy import func
-
-    from app.config import settings
 
     activas = db.execute(
         select(func.count())
@@ -175,8 +169,6 @@ def solicitar_reserva_directa(
 
     recogida = cot.fecha_hora_recogida
     if recogida.tzinfo is None:  # SQLite: hora de Madrid
-        from app.pricing.motor import TZ_MADRID
-
         recogida = recogida.replace(tzinfo=TZ_MADRID)
 
     return crear_solicitud(
@@ -211,8 +203,6 @@ def solicitudes_abiertas(db: Session) -> list[SolicitudViaje]:
     def futura(s: SolicitudViaje) -> bool:
         recogida = s.fecha_hora_recogida
         if recogida.tzinfo is None:  # SQLite pierde el tzinfo (hora Madrid)
-            from app.pricing.motor import TZ_MADRID
-
             recogida = recogida.replace(tzinfo=TZ_MADRID)
         return recogida > ahora
 
@@ -221,15 +211,11 @@ def solicitudes_abiertas(db: Session) -> list[SolicitudViaje]:
 
 def radio_de(tenant) -> float:
     """Radio de la bolsa de este taxista (su ajuste o el global)."""
-    from app.config import settings
-
     return float(tenant.radio_km) if tenant.radio_km else settings.bolsa_radio_km
 
 
 def distancia_km(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
     """Distancia haversine en km entre dos puntos."""
-    import math
-
     r = 6371.0
     p1, p2 = math.radians(a_lat), math.radians(b_lat)
     dp = math.radians(b_lat - a_lat)
@@ -298,8 +284,6 @@ def aceptar_solicitud(
 
     recogida = solicitud.fecha_hora_recogida
     if recogida.tzinfo is None:
-        from app.pricing.motor import TZ_MADRID
-
         recogida = recogida.replace(tzinfo=TZ_MADRID)
 
     cotizacion = crear_cotizacion(

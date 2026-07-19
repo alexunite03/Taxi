@@ -35,7 +35,7 @@ def _generar_vapid() -> int:
         serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
     )
     print("Añade a tu entorno (.env):")
-    print(f"TAXI_PUSH_PROVIDER=webpush")
+    print("TAXI_PUSH_PROVIDER=webpush")
     print(f"TAXI_VAPID_PRIVATE_KEY={b64url(privada)}")
     print(f"TAXI_VAPID_PUBLIC_KEY={b64url(publica)}")
     print("TAXI_VAPID_EMAIL=tu-contacto@dominio.es")

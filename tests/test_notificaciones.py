@@ -1,5 +1,4 @@
 """Tests de la capa de email: confirmación, cancelación y recordatorios."""
-import uuid
 from datetime import datetime, timedelta
 
 import pytest
@@ -11,7 +10,7 @@ from app.notificaciones import Email
 from app.pricing.motor import TZ_MADRID
 from app.services.notificaciones import enviar_recordatorios
 
-from .test_api import aceptar_pendiente, fecha_recogida, pedir_cotizacion
+from .test_api import aceptar_pendiente, pedir_cotizacion
 
 
 class SenderEspia:

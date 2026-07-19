@@ -21,7 +21,8 @@ from app.services.cotizaciones import (
     ErrorCotizacion,
     crear_cotizacion,
 )
-from app.services.notificaciones import notificar_cancelacion
+from app.services.bolsa import ErrorBolsa, solicitar_reserva_directa
+from app.services.notificaciones import notificar_cancelacion, tarea_solicitud_directa
 from app.services.reservas import (
     ErrorReserva,
     cancelar_reserva,
@@ -121,12 +122,6 @@ def cotizar_web(
     geocoder, rutas = provs
     decision_peaje = {"si": True, "no": False}.get(con_peaje or "")
 
-    def lugar(texto, lat, lng):
-        try:
-            return Lugar(texto=texto.strip(), lat=float(lat), lng=float(lng))
-        except (TypeError, ValueError):
-            return None
-
     try:
         cot = crear_cotizacion(
             db,
@@ -137,8 +132,8 @@ def cotizar_web(
             destino,
             parsear_fecha_recogida(fecha_hora),
             con_peaje=decision_peaje,
-            origen_lugar=lugar(origen, origen_lat, origen_lng),
-            destino_lugar=lugar(destino, destino_lat, destino_lng),
+            origen_lugar=Lugar.opcional(origen, origen_lat, origen_lng),
+            destino_lugar=Lugar.opcional(destino, destino_lat, destino_lng),
         )
         db.commit()
     except DecisionPeajeRequerida as e:
@@ -186,9 +181,6 @@ def reservar_web(
     """El pasajero solicita la reserva al precio máximo de la oferta; la
     reserva y el justificante se crean cuando el taxista acepta (panel o
     Telegram). El aviso al taxista sale en segundo plano."""
-    from app.services.bolsa import ErrorBolsa, solicitar_reserva_directa
-    from app.services.notificaciones import tarea_solicitud_directa
-
     limitar_por_ip(request)
     comprobar_honeypot(website)
     try:

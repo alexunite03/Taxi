@@ -1,7 +1,6 @@
 """Tests del flujo de reserva directa: el pasajero solicita al precio máximo
 y el taxista acepta (con descuento opcional) o rechaza, desde el panel o con
 los botones de Telegram."""
-import uuid
 
 from sqlalchemy import select
 

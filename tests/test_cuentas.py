@@ -1,7 +1,7 @@
 """Tests del registro de taxistas y de la cuenta opcional del pasajero."""
 from sqlalchemy import select
 
-from app.models import Tenant, Usuario
+from app.models import Tenant
 
 from .test_api import fecha_recogida, pedir_cotizacion, reservar_directa
 

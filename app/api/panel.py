@@ -13,9 +13,23 @@ from app.config import settings
 from app.db import get_db
 from app.models import Justificante, Reserva, Tenant
 from app.security import verify_password
-from app.services.bolsa import ErrorBolsa, aceptar_solicitud, solicitudes_abiertas
+from app.notificaciones import Email
+from app.services.bolsa import (
+    ErrorBolsa,
+    aceptar_solicitud,
+    con_distancia,
+    rechazar_solicitud,
+    solicitudes_abiertas,
+    solicitudes_pendientes_de,
+)
 from app.services.cotizaciones import DecisionPeajeRequerida, ErrorCotizacion, crear_cotizacion
-from app.services.notificaciones import notificar_cancelacion, notificar_confirmacion
+from app.services.justificantes import asegurar_archivo
+from app.services.notificaciones import (
+    notificar_cancelacion,
+    notificar_confirmacion,
+    notificar_hoja_de_ruta_taxista,
+    notificar_rechazo_pasajero,
+)
 from app.services.reservas import ErrorReserva, aceptar_reserva
 
 from .deps import (
@@ -61,16 +75,10 @@ def logout(request: Request):
     return RedirectResponse("/panel/login", status_code=303)
 
 
-@router.get("", response_class=HTMLResponse)
-def agenda(
-    request: Request,
-    tenant: Tenant = Depends(tenant_sesion),
-    db: Session = Depends(get_db),
-):
-    reservas = (
+def _reservas_recientes(db: Session, tenant: Tenant) -> list[Reserva]:
+    return (
         db.execute(
             select(Reserva)
-            .join(Reserva.cotizacion)
             .where(Reserva.tenant_id == tenant.id)
             .order_by(Reserva.creada_en.desc())
             .limit(100)
@@ -78,6 +86,15 @@ def agenda(
         .scalars()
         .all()
     )
+
+
+@router.get("", response_class=HTMLResponse)
+def agenda(
+    request: Request,
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+):
+    reservas = _reservas_recientes(db, tenant)
     return templates.TemplateResponse(
         request,
         "panel_agenda.html",
@@ -112,12 +129,7 @@ def cotizar_asistida(
         )
     except ErrorCotizacion as e:
         error = str(e)
-    reservas = (
-        db.execute(
-            select(Reserva).where(Reserva.tenant_id == tenant.id)
-            .order_by(Reserva.creada_en.desc()).limit(100)
-        ).scalars().all()
-    )
+    reservas = _reservas_recientes(db, tenant)
     return templates.TemplateResponse(
         request,
         "panel_agenda.html",
@@ -209,10 +221,6 @@ def descargar_justificante(
     ).scalar_one_or_none()
     if j is None:
         raise HTTPException(404, "Justificante no encontrado")
-    from pathlib import Path
-
-    from app.services.justificantes import asegurar_archivo
-
     if j.pdf_path and Path(j.pdf_path).exists():
         return FileResponse(j.pdf_path, media_type="application/pdf")
     return FileResponse(asegurar_archivo(j), media_type="text/html")
@@ -226,8 +234,6 @@ def bolsa_pagina(
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
 ):
-    from app.services.bolsa import con_distancia, solicitudes_pendientes_de
-
     solicitudes = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
     if solicitudes and lat is not None and lng is not None:
         solicitudes = con_distancia(solicitudes, lat, lng)
@@ -287,7 +293,6 @@ def probar_avisos(
 ):
     """Envía un email y un Telegram de prueba AHORA y muestra el resultado
     (o el error exacto del proveedor) en pantalla."""
-    from app.notificaciones import Email
     from app.web.perfiles import resumen_valoraciones
 
     resultados = []
@@ -422,11 +427,6 @@ def aceptar_viaje(
         )
     except (ErrorBolsa, ErrorCotizacion, ErrorReserva) as e:
         raise HTTPException(422, str(e))
-    from app.services.notificaciones import (
-        notificar_confirmacion,
-        notificar_hoja_de_ruta_taxista,
-    )
-
     notificar_confirmacion(db, sender, reserva)
     notificar_hoja_de_ruta_taxista(db, sender, telegram, solicitud, reserva)
     return RedirectResponse("/panel/bolsa", status_code=303)
@@ -439,9 +439,6 @@ def rechazar_viaje(
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
 ):
-    from app.services.bolsa import rechazar_solicitud
-    from app.services.notificaciones import notificar_rechazo_pasajero
-
     try:
         solicitud = rechazar_solicitud(db, tenant, solicitud_id)
     except ErrorBolsa as e:

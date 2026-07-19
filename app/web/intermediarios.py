@@ -21,6 +21,7 @@ from app.routing import Lugar
 from app.security import hash_password, verify_password
 from app.services.bolsa import ErrorBolsa, crear_solicitud
 from app.services.cotizaciones import ErrorCotizacion
+from app.services.notificaciones import tarea_avisar_bolsa
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -165,20 +166,14 @@ def pedir_taxi(
         return RedirectResponse("/intermediario/login", status_code=303)
     geocoder, rutas = provs
 
-    def lugar(texto, lat, lng):
-        try:
-            return Lugar(texto=texto.strip(), lat=float(lat), lng=float(lng))
-        except (TypeError, ValueError):
-            return None
-
     try:
         solicitud = crear_solicitud(
             db, geocoder, rutas,
             cliente_nombre, cliente_telefono, None,
             origen, destino,
             parsear_fecha_recogida(fecha_hora),
-            origen_lugar=lugar(origen, origen_lat, origen_lng),
-            destino_lugar=lugar(destino, destino_lat, destino_lng),
+            origen_lugar=Lugar.opcional(origen, origen_lat, origen_lng),
+            destino_lugar=Lugar.opcional(destino, destino_lat, destino_lng),
             intermediario_id=inter.id,
         )
     except (ErrorCotizacion, ErrorBolsa) as e:
@@ -198,7 +193,5 @@ def pedir_taxi(
                          "origen": origen, "destino": destino,
                          "fecha_hora": fecha_hora}},
         )
-    from app.services.notificaciones import tarea_avisar_bolsa
-
     background.add_task(tarea_avisar_bolsa, solicitud.id, sender, telegram)
     return RedirectResponse("/intermediario", status_code=303)

@@ -158,44 +158,6 @@ def notificar_cancelacion(
     )
 
 
-def notificar_taxista_reserva(db: Session, sender, telegram, reserva: Reserva):
-    """Avisa al taxista de una reserva nueva por email y, si tiene chat
-    vinculado, por Telegram. Nunca bloquea la reserva."""
-    tenant = reserva.tenant
-    cot = reserva.cotizacion
-    texto = (
-        f"Nueva reserva {cot.fecha_hora_recogida.strftime('%d/%m %H:%M')} · "
-        f"{cot.origen_texto} → {cot.destino_texto} · "
-        f"{reserva.precio_cerrado} € · {reserva.cliente.nombre} "
-        f"({reserva.cliente.telefono})"
-    )
-    notificacion = Notificacion(reserva_id=reserva.id, canal="email", tipo="aviso_taxista")
-    try:
-        sender.enviar(Email(
-            para=tenant.email,
-            asunto=f"Nueva reserva: {cot.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
-            html=f"<p>{texto}</p><p><a href='{settings.base_url}/panel'>Abrir mi agenda</a></p>",
-        ))
-        notificacion.estado = "enviada"
-        notificacion.enviada_en = datetime.now(timezone.utc)
-    except Exception:
-        logger.exception("Fallo avisando por email al taxista %s", tenant.id)
-        notificacion.estado = "fallida"
-    db.add(notificacion)
-
-    if tenant.telegram_chat_id:
-        notif_tg = Notificacion(reserva_id=reserva.id, canal="telegram", tipo="aviso_taxista")
-        try:
-            telegram.enviar(tenant.telegram_chat_id, f"🚕 {texto}")
-            notif_tg.estado = "enviada"
-            notif_tg.enviada_en = datetime.now(timezone.utc)
-        except Exception:
-            logger.exception("Fallo avisando por Telegram al taxista %s", tenant.id)
-            notif_tg.estado = "fallida"
-        db.add(notif_tg)
-    db.commit()
-
-
 def hoja_de_ruta(solicitud, reserva=None) -> str:
     """Resumen del viaje para el taxista (Telegram/email). Con `reserva`,
     muestra el precio cerrado definitivo en vez del máximo."""
@@ -228,12 +190,15 @@ def _pdf_hoja(solicitud, reserva=None) -> list[Adjunto]:
 
 
 def _telegram_con_hoja(
-    telegram, chat_id, encabezado, solicitud, botones=None, reserva=None
+    telegram, chat_id, encabezado, solicitud,
+    botones=None, reserva=None, adjuntos=None,
 ) -> None:
     """Envía por Telegram la hoja de ruta como PDF con el texto y los
-    botones; si el documento falla, degrada a mensaje de texto."""
+    botones; si el documento falla, degrada a mensaje de texto. `adjuntos`
+    admite un PDF ya generado (avisos en lote: un solo render)."""
     texto = f"{encabezado}\n\n{hoja_de_ruta(solicitud, reserva)}"
-    adjuntos = _pdf_hoja(solicitud, reserva)
+    if adjuntos is None:
+        adjuntos = _pdf_hoja(solicitud, reserva)
     if adjuntos:
         try:
             telegram.enviar_documento(
@@ -377,6 +342,10 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
     )
     from app.services.bolsa import distancia_km, radio_de
 
+    # El PDF y los botones son iguales para todos: se generan una sola vez
+    adjuntos = _pdf_hoja(solicitud)
+    botones = _botones_solicitud(solicitud)
+
     enviados = 0
     for t in disponibles:
         # Modo Uber: si el taxista compartió su ubicación por Telegram, solo
@@ -395,7 +364,7 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
                 para=t.email,
                 asunto="Viaje nuevo en la bolsa",
                 html=f"<p>{texto}</p><p><a href='{settings.base_url}/panel/bolsa'>Ver la bolsa</a></p>",
-                adjuntos=_pdf_hoja(solicitud),
+                adjuntos=adjuntos,
             ))
             enviados += 1
         except Exception:
@@ -404,7 +373,7 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
             try:
                 _telegram_con_hoja(
                     telegram, t.telegram_chat_id, f"🚕 {texto}",
-                    solicitud, botones=_botones_solicitud(solicitud),
+                    solicitud, botones=botones, adjuntos=adjuntos,
                 )
                 enviados += 1
             except Exception:

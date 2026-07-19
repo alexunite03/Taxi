@@ -56,6 +56,12 @@ def crear_app() -> FastAPI:
         "telegram", crear_telegram_sender, ConsoleTelegramSender
     )
 
+    if settings.secret_key == "cambia-esto-en-produccion" and \
+            "localhost" not in settings.base_url:
+        print("AVISO: TAXI_SECRET_KEY sigue siendo la de ejemplo. Pon una "
+              "cadena aleatoria larga antes de abrir la web al público.",
+              flush=True)
+
     # Deja en los logs qué proveedor quedó activo en cada canal: si pone
     # "Console…", ese canal NO envía nada real (faltan variables TAXI_*).
     for canal, sender in (("email", app.state.email_sender),

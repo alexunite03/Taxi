@@ -1,7 +1,6 @@
 """Tests de Web Push: alta de suscripción, envío y limpieza de caducadas."""
 from datetime import datetime, timedelta
 
-import pytest
 from sqlalchemy import select
 
 from app.main import app
@@ -10,7 +9,6 @@ from app.notificaciones import SuscripcionCaducada
 from app.pricing.motor import TZ_MADRID
 from app.services.notificaciones import enviar_recordatorios
 
-from .test_api import pedir_cotizacion
 from .test_notificaciones import PushEspia, SenderEspia, espia, reservar  # noqa: F401
 
 SUSCRIPCION = {

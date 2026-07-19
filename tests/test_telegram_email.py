@@ -7,7 +7,7 @@ from app.models import Tenant
 from app.notificaciones import Adjunto, Email, SMTPEmailSender
 
 from .test_bolsa import login_panel
-from .test_social import TelegramEspia, con_telegram_espia
+from .test_social import con_telegram_espia
 
 
 def update_telegram(client, texto, chat_id="777000", headers=None):
