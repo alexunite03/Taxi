@@ -93,8 +93,11 @@ class PhotonGeocoder:
     textos a medias («gran vi») mucho mejor que Nominatim y no necesita
     API key. Reverse incluido."""
 
-    def __init__(self, base_url: str = "https://photon.komoot.io"):
+    def __init__(self, base_url: str = "https://photon.komoot.io", contacto: str = ""):
         self.base_url = base_url.rstrip("/")
+        # komoot filtra el tráfico anónimo (403 desde datacenters): su
+        # política pide un User-Agent identificable, como Nominatim
+        self.headers = {"User-Agent": f"taxi-saas/0.1 ({contacto or 'demo'})"}
         self._cache: dict[str, tuple[float, list[Lugar]]] = {}
 
     @staticmethod
@@ -126,6 +129,7 @@ class PhotonGeocoder:
             params={"q": texto, "limit": 5,
                     "lat": 40.4168, "lon": -3.7038,  # sesgo a Madrid
                     "location_bias_scale": 0.4, "zoom": 12},
+            headers=self.headers,
             timeout=8,
         )
         resp.raise_for_status()
@@ -144,6 +148,7 @@ class PhotonGeocoder:
         resp = httpx.get(
             f"{self.base_url}/reverse",
             params={"lat": lat, "lon": lng},
+            headers=self.headers,
             timeout=8,
         )
         resp.raise_for_status()
@@ -157,29 +162,35 @@ class PhotonGeocoder:
 class GeocoderConFallback:
     """Prueba el geocodificador primario y, si falla, el de respaldo.
 
-    Protege producción de una caída (o un cambio de API) de Photon:
-    la búsqueda degrada a Nominatim en vez de quedarse muerta. Cada fallo
-    queda en el log para poder diagnosticarlo en Render."""
+    Protege producción de una caída (o un bloqueo) de Photon: la búsqueda
+    degrada a Nominatim en vez de quedarse muerta. Tras un fallo, el
+    primario queda en cuarentena unos minutos para no pagar un intento
+    fallido (y un traceback en el log) en cada tecla del autocompletar."""
+
+    CUARENTENA_S = 300
 
     def __init__(self, primario, respaldo):
         self.primario = primario
         self.respaldo = respaldo
+        self._averiado_hasta = 0.0
+
+    def _llamar(self, metodo: str, *args):
+        if time.monotonic() >= self._averiado_hasta:
+            try:
+                return getattr(self.primario, metodo)(*args)
+            except Exception:
+                self._averiado_hasta = time.monotonic() + self.CUARENTENA_S
+                _logger.exception(
+                    "Geocoder primario caído (%s); respaldo durante %s s",
+                    metodo, self.CUARENTENA_S,
+                )
+        return getattr(self.respaldo, metodo)(*args)
 
     def geocodificar(self, texto: str) -> list[Lugar]:
-        try:
-            return self.primario.geocodificar(texto)
-        except Exception:
-            _logger.exception(
-                "Geocoder primario caído para %r; usando el respaldo", texto
-            )
-            return self.respaldo.geocodificar(texto)
+        return self._llamar("geocodificar", texto)
 
     def invertir(self, lat: float, lng: float) -> Lugar | None:
-        try:
-            return self.primario.invertir(lat, lng)
-        except Exception:
-            _logger.exception("Reverse primario caído; usando el respaldo")
-            return self.respaldo.invertir(lat, lng)
+        return self._llamar("invertir", lat, lng)
 
 
 class OSRMRouteProvider:

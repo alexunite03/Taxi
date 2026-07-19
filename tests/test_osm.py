@@ -114,11 +114,14 @@ def test_photon_reverse(monkeypatch):
 def test_fallback_a_nominatim_si_photon_falla(monkeypatch):
     from app.routing.osm import GeocoderConFallback
 
+    intentos_photon = []
+
     def photon_roto(url, **kwargs):
-        if "/api" in url or "photon" in url:
+        if "photon" in url:
+            intentos_photon.append(url)
             raise httpx.HTTPStatusError(
-                "400", request=httpx.Request("GET", url),
-                response=httpx.Response(400, request=httpx.Request("GET", url)),
+                "403", request=httpx.Request("GET", url),
+                response=httpx.Response(403, request=httpx.Request("GET", url)),
             )
         return _respuesta(NOMINATIM_RESPUESTA)
 
@@ -129,8 +132,15 @@ def test_fallback_a_nominatim_si_photon_falla(monkeypatch):
     )
     lugares = geo.geocodificar("Calle de Alcalá 200")
     assert lugares and lugares[0].texto == "Calle de Alcalá 200, Madrid"
+    assert len(intentos_photon) == 1
 
-    # Y si el primario funciona, no se toca el respaldo
+    # Cuarentena: mientras dure, ni se intenta el primario (una tecla = una
+    # petición; sin ella el autocompletar pagaría un fallo por pulsación)
+    geo.geocodificar("otra búsqueda")
+    assert len(intentos_photon) == 1
+
+    # Pasada la cuarentena, se reintenta el primario
+    geo._averiado_hasta = 0.0
     monkeypatch.setattr(httpx, "get", lambda url, **kw: _respuesta(PHOTON_RESPUESTA))
     lugares = geo.geocodificar("gran vía nueva")
     assert lugares[0].texto.startswith("Gran Vía")

@@ -16,7 +16,7 @@ def crear_proveedores() -> tuple[Geocoder, RouteProvider]:
 
         return (
             GeocoderConFallback(
-                PhotonGeocoder(settings.photon_url),
+                PhotonGeocoder(settings.photon_url, settings.proveedor_email),
                 NominatimGeocoder(settings.nominatim_url, settings.proveedor_email),
             ),
             OSRMRouteProvider(settings.osrm_url),
