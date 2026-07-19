@@ -7,10 +7,18 @@ def crear_proveedores() -> tuple[Geocoder, RouteProvider]:
     from app.config import settings
 
     if settings.route_provider == "osm":
-        from .osm import OSRMRouteProvider, PhotonGeocoder
+        from .osm import (
+            GeocoderConFallback,
+            NominatimGeocoder,
+            OSRMRouteProvider,
+            PhotonGeocoder,
+        )
 
         return (
-            PhotonGeocoder(settings.photon_url),
+            GeocoderConFallback(
+                PhotonGeocoder(settings.photon_url),
+                NominatimGeocoder(settings.nominatim_url, settings.proveedor_email),
+            ),
             OSRMRouteProvider(settings.osrm_url),
         )
     if settings.route_provider == "google":

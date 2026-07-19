@@ -92,9 +92,11 @@ def test_photon_autocompleta_con_sesgo_a_madrid(monkeypatch):
         "Gran Vía 32, Centro, Madrid",
     ]
     assert lugares[0].lat == 40.42 and lugares[0].lng == -3.7031
-    # Sesgo a Madrid en la petición
+    # Sesgo a Madrid en la petición y sin lang: la instancia pública de
+    # Photon solo admite default/en/de/fr y con "es" devuelve 400
     _, params = llamadas[0]
     assert params["lat"] == 40.4168 and params["lon"] == -3.7038
+    assert "lang" not in params
 
     # Caché: repetir no vuelve a llamar
     geo.geocodificar("Gran Vi")
@@ -107,6 +109,31 @@ def test_photon_reverse(monkeypatch):
     lugar = geo.invertir(40.42, -3.7031)
     assert lugar.texto.startswith("Gran Vía")
     assert lugar.lat == 40.42
+
+
+def test_fallback_a_nominatim_si_photon_falla(monkeypatch):
+    from app.routing.osm import GeocoderConFallback
+
+    def photon_roto(url, **kwargs):
+        if "/api" in url or "photon" in url:
+            raise httpx.HTTPStatusError(
+                "400", request=httpx.Request("GET", url),
+                response=httpx.Response(400, request=httpx.Request("GET", url)),
+            )
+        return _respuesta(NOMINATIM_RESPUESTA)
+
+    monkeypatch.setattr(httpx, "get", photon_roto)
+    geo = GeocoderConFallback(
+        PhotonGeocoder("https://photon.example"),
+        NominatimGeocoder("https://nominatim.example", "test@example.com"),
+    )
+    lugares = geo.geocodificar("Calle de Alcalá 200")
+    assert lugares and lugares[0].texto == "Calle de Alcalá 200, Madrid"
+
+    # Y si el primario funciona, no se toca el respaldo
+    monkeypatch.setattr(httpx, "get", lambda url, **kw: _respuesta(PHOTON_RESPUESTA))
+    lugares = geo.geocodificar("gran vía nueva")
+    assert lugares[0].texto.startswith("Gran Vía")
 
 
 def test_osrm_convierte_pasos_en_tramos_y_da_geometria(monkeypatch):

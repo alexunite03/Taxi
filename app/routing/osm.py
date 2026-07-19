@@ -10,11 +10,14 @@ mínimo de 3 caracteres y esta caché en memoria.
 """
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 from decimal import Decimal
 
 import httpx
+
+_logger = logging.getLogger("taxi.routing")
 
 from app.pricing import Tramo
 
@@ -116,9 +119,11 @@ class PhotonGeocoder:
         en_cache = self._cache.get(clave)
         if en_cache and time.monotonic() - en_cache[0] < _CACHE_TTL_S:
             return en_cache[1]
+        # Ojo: la instancia pública solo admite lang default/en/de/fr; con
+        # "es" devuelve 400. Sin lang usa los nombres locales (los buenos).
         resp = httpx.get(
             f"{self.base_url}/api",
-            params={"q": texto, "limit": 5, "lang": "es",
+            params={"q": texto, "limit": 5,
                     "lat": 40.4168, "lon": -3.7038,  # sesgo a Madrid
                     "location_bias_scale": 0.4, "zoom": 12},
             timeout=8,
@@ -138,7 +143,7 @@ class PhotonGeocoder:
     def invertir(self, lat: float, lng: float) -> Lugar | None:
         resp = httpx.get(
             f"{self.base_url}/reverse",
-            params={"lat": lat, "lon": lng, "lang": "es"},
+            params={"lat": lat, "lon": lng},
             timeout=8,
         )
         resp.raise_for_status()
@@ -147,6 +152,34 @@ class PhotonGeocoder:
             return None
         return Lugar(texto=self._texto(features[0].get("properties", {})) or f"{lat}, {lng}",
                      lat=lat, lng=lng)
+
+
+class GeocoderConFallback:
+    """Prueba el geocodificador primario y, si falla, el de respaldo.
+
+    Protege producción de una caída (o un cambio de API) de Photon:
+    la búsqueda degrada a Nominatim en vez de quedarse muerta. Cada fallo
+    queda en el log para poder diagnosticarlo en Render."""
+
+    def __init__(self, primario, respaldo):
+        self.primario = primario
+        self.respaldo = respaldo
+
+    def geocodificar(self, texto: str) -> list[Lugar]:
+        try:
+            return self.primario.geocodificar(texto)
+        except Exception:
+            _logger.exception(
+                "Geocoder primario caído para %r; usando el respaldo", texto
+            )
+            return self.respaldo.geocodificar(texto)
+
+    def invertir(self, lat: float, lng: float) -> Lugar | None:
+        try:
+            return self.primario.invertir(lat, lng)
+        except Exception:
+            _logger.exception("Reverse primario caído; usando el respaldo")
+            return self.respaldo.invertir(lat, lng)
 
 
 class OSRMRouteProvider:
