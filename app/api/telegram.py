@@ -43,16 +43,68 @@ AYUDA = (
 )
 
 
+def _aceptar_desde_telegram(
+    request: Request, db: Session, telegram, tenant, chat_id: str,
+    solicitud_id, avisar, pct: int = 0, precio_pactado=None,
+) -> None:
+    """Acepta la solicitud (botón o precio escrito) y envía la hoja de ruta
+    definitiva. `avisar` responde al botón o al chat según el origen."""
+    from app.services.bolsa import ErrorBolsa, ViajeYaAsignado, aceptar_solicitud
+    from app.services.cotizaciones import ErrorCotizacion
+    from app.services.notificaciones import (
+        notificar_confirmacion,
+        notificar_hoja_de_ruta_taxista,
+    )
+
+    try:
+        solicitud, reserva = aceptar_solicitud(
+            db, tenant, solicitud_id,
+            request.app.state.geocoder, request.app.state.rutas,
+            descuento_pct=pct if pct > 0 else None,
+            precio_pactado=precio_pactado,
+        )
+    except ViajeYaAsignado:
+        avisar("Ya lo aceptó otro taxista.")
+        return
+    except (ErrorBolsa, ErrorCotizacion) as e:
+        avisar(str(e))
+        return
+    except Exception:
+        logger.exception("Fallo aceptando la solicitud %s desde Telegram", solicitud_id)
+        avisar("No se pudo aceptar el viaje. Inténtalo desde tu panel.")
+        return
+
+    notificar_confirmacion(db, request.app.state.email_sender, reserva)
+    avisar(f"✅ Viaje aceptado por {reserva.precio_cerrado} €")
+    try:
+        # Hoja de ruta definitiva en PDF por Telegram y por email
+        notificar_hoja_de_ruta_taxista(
+            db, request.app.state.email_sender, telegram, solicitud, reserva
+        )
+    except Exception:
+        logger.exception("Fallo enviando la hoja de ruta tras aceptar %s", solicitud_id)
+        try:
+            telegram.enviar(
+                chat_id,
+                f"✅ Viaje aceptado por {reserva.precio_cerrado} €.\n"
+                f"Justificante: {settings.base_url}/r/{reserva.token_publico}",
+            )
+        except Exception:
+            logger.exception("No se pudo responder al chat %s", chat_id)
+
+
 def _procesar_callback(request: Request, db: Session, telegram, callback: dict) -> dict:
-    """Botones inline de una solicitud: `sol:<id>:a:<pct>` acepta el viaje
-    (con descuento opcional) y `sol:<id>:r` lo rechaza. El precio definitivo
-    lo pone el taxista al pulsar; el pasajero solo vio el precio máximo."""
+    """Botones inline de una solicitud:
+    `sol:<id>:a:<pct>` acepta (descuento opcional) · `sol:<id>:m` abre el
+    menú de precio · `sol:<id>:v` vuelve al menú principal · `sol:<id>:p`
+    pide un precio exacto por chat · `sol:<id>:r` rechaza."""
     import uuid
 
     callback_id = callback.get("id") or ""
     datos = callback.get("data") or ""
+    mensaje = callback.get("message") or {}
     chat_id = str(
-        ((callback.get("message") or {}).get("chat") or {}).get("id")
+        (mensaje.get("chat") or {}).get("id")
         or (callback.get("from") or {}).get("id")
         or ""
     )
@@ -78,25 +130,47 @@ def _procesar_callback(request: Request, db: Session, telegram, callback: dict) 
         avisar("Botón no reconocido.")
         return {"ok": True}
 
-    from app.services.bolsa import (
-        ErrorBolsa,
-        ViajeYaAsignado,
-        aceptar_solicitud,
-        rechazar_solicitud,
-    )
-    from app.services.notificaciones import (
-        notificar_confirmacion,
-        notificar_hoja_de_ruta_taxista,
-        notificar_rechazo_pasajero,
-    )
+    accion = partes[2]
 
-    def responder_chat(t: str) -> None:
+    if accion in ("m", "v", "p"):
+        from app.models import SolicitudViaje
+        from app.services.notificaciones import botones_precio, botones_solicitud
+
+        solicitud = db.get(SolicitudViaje, solicitud_id)
+        if solicitud is None or solicitud.estado != "abierta":
+            avisar("Este viaje ya no está pendiente.")
+            return {"ok": True}
+
+        if accion == "p":  # precio libre: se pide por chat con force_reply
+            avisar("")
+            try:
+                telegram.enviar(
+                    chat_id,
+                    f"✏️ ¿Por cuánto quieres hacer este viaje? "
+                    f"Máximo {solicitud.precio_estimado} €.\n"
+                    "Responde a ESTE mensaje solo con el importe, "
+                    "por ejemplo: 22,50\n"
+                    f"Ref #V-{solicitud.id}",
+                    forzar_respuesta=True,
+                )
+            except Exception:
+                logger.exception("No se pudo pedir el precio al chat %s", chat_id)
+            return {"ok": True}
+
+        botones = (botones_precio(solicitud) if accion == "m"
+                   else botones_solicitud(solicitud))
         try:
-            telegram.enviar(chat_id, t)
+            telegram.editar_botones(chat_id, mensaje.get("message_id"), botones)
+            avisar("")
         except Exception:
-            logger.exception("No se pudo responder al chat %s", chat_id)
+            logger.exception("No se pudo cambiar el menú del chat %s", chat_id)
+            avisar("No se pudo abrir el menú.")
+        return {"ok": True}
 
-    if partes[2] == "r":
+    if accion == "r":
+        from app.services.bolsa import ErrorBolsa, ViajeYaAsignado, rechazar_solicitud
+        from app.services.notificaciones import notificar_rechazo_pasajero
+
         try:
             solicitud = rechazar_solicitud(db, tenant, solicitud_id)
         except ViajeYaAsignado:
@@ -107,8 +181,15 @@ def _procesar_callback(request: Request, db: Session, telegram, callback: dict) 
             return {"ok": True}
         avisar("Viaje rechazado")
         notificar_rechazo_pasajero(db, request.app.state.email_sender, solicitud)
-        responder_chat("❌ Viaje rechazado. Hemos avisado al pasajero para que "
-                       "busque otro taxista.")
+        try:
+            telegram.enviar(chat_id, "❌ Viaje rechazado. Hemos avisado al "
+                                     "pasajero para que busque otro taxista.")
+        except Exception:
+            logger.exception("No se pudo responder al chat %s", chat_id)
+        return {"ok": True}
+
+    if accion != "a":
+        avisar("Botón no reconocido.")
         return {"ok": True}
 
     try:
@@ -119,37 +200,51 @@ def _procesar_callback(request: Request, db: Session, telegram, callback: dict) 
         avisar("Descuento fuera de los límites (0–30 %).")
         return {"ok": True}
 
-    try:
-        solicitud, reserva = aceptar_solicitud(
-            db, tenant, solicitud_id,
-            request.app.state.geocoder, request.app.state.rutas,
-            descuento_pct=pct if pct > 0 else None,
-        )
-    except ViajeYaAsignado:
-        avisar("Ya lo aceptó otro taxista.")
-        return {"ok": True}
-    except ErrorBolsa as e:
-        avisar(str(e))
-        return {"ok": True}
-    except Exception:
-        logger.exception("Fallo aceptando la solicitud %s desde Telegram", solicitud_id)
-        avisar("No se pudo aceptar el viaje. Inténtalo desde tu panel.")
+    _aceptar_desde_telegram(request, db, telegram, tenant, chat_id,
+                            solicitud_id, avisar, pct=pct)
+    return {"ok": True}
+
+
+def _precio_respondido(
+    request: Request, db: Session, telegram, chat_id: str,
+    texto_citado: str, texto: str,
+) -> dict:
+    """El taxista respondió al force_reply con su precio (Ref #V-<id>)."""
+    import re
+    import uuid
+    from decimal import Decimal, InvalidOperation
+
+    def responder(t: str) -> None:
+        try:
+            telegram.enviar(chat_id, t)
+        except Exception:
+            logger.exception("No se pudo responder al chat %s", chat_id)
+
+    ref = re.search(r"#V-([0-9a-f-]{36})", texto_citado)
+    if ref is None:
+        responder(AYUDA)
         return {"ok": True}
 
-    notificar_confirmacion(db, request.app.state.email_sender, reserva)
-    avisar("✅ Viaje aceptado")
-    extra = f" (descuento del {pct} %)" if pct else ""
+    tenant = db.execute(
+        select(Tenant).where(Tenant.telegram_chat_id == chat_id)
+    ).scalar_one_or_none()
+    if tenant is None:
+        responder(VINCULA)
+        return {"ok": True}
+
+    limpio = texto.replace("€", "").replace(",", ".").strip()
     try:
-        # Hoja de ruta definitiva en PDF por Telegram y por email
-        notificar_hoja_de_ruta_taxista(
-            db, request.app.state.email_sender, telegram, solicitud, reserva
-        )
-    except Exception:
-        logger.exception("Fallo enviando la hoja de ruta tras aceptar %s", solicitud_id)
-        responder_chat(
-            f"✅ Viaje aceptado por {reserva.precio_cerrado} €{extra}.\n"
-            f"Justificante: {settings.base_url}/r/{reserva.token_publico}"
-        )
+        precio = Decimal(limpio)
+    except InvalidOperation:
+        responder("No he entendido el precio. Escribe solo el importe, "
+                  "por ejemplo: 22,50 — o vuelve a pulsar «✏️ Escribir otro "
+                  "precio» en el aviso del viaje.")
+        return {"ok": True}
+
+    _aceptar_desde_telegram(
+        request, db, telegram, tenant, chat_id,
+        uuid.UUID(ref.group(1)), responder, precio_pactado=precio,
+    )
     return {"ok": True}
 
 
@@ -278,6 +373,10 @@ def webhook(
             telegram.enviar(chat_id, t)
         except Exception:
             logger.exception("No se pudo responder al chat %s", chat_id)
+
+    citado = (mensaje.get("reply_to_message") or {}).get("text") or ""
+    if "#V-" in citado:  # respuesta al «✏️ Escribir otro precio»
+        return _precio_respondido(request, db, telegram, chat_id, citado, texto)
 
     comando, _, args = texto.partition(" ")
     comando = comando.split("@", 1)[0]  # en grupos llega "/radio@mibot"

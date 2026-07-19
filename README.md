@@ -72,9 +72,14 @@ del servicio.
 - **Avisos al taxista**: email y Telegram (Bot API gratuito; token global
   `TAXI_TELEGRAM_BOT_TOKEN`, cada taxista vincula su chat desde el perfil)
   al recibir una reserva y cuando entra un viaje nuevo en la bolsa. Los
-  mensajes de Telegram llevan la **hoja de ruta** completa y **botones
-  inline** para aceptar (con descuento del 5 o 10 %) o rechazar sin salir
-  del chat. Los avisos salen en segundo plano: la reserva no espera al SMTP.
+  mensajes de Telegram llevan la **hoja de ruta** completa (con la
+  distancia hasta la recogida si el taxista comparte su ubicación) y un
+  **menú de botones inline**: aceptar al precio máximo, abrir la recogida
+  en el mapa, rechazar, o «Ajustar el precio…» con descuentos del 5 al
+  30 % (importe resultante ya calculado en cada botón) e incluso escribir
+  un **precio exacto** en el chat. El precio pactado nunca supera el
+  máximo regulado y queda reflejado en el payload auditable. Los avisos
+  salen en segundo plano: la reserva no espera al SMTP.
 - **Autocompletado con Photon** (komoot): búsqueda de calles pensada para
   autocompletar (entiende «gran vi» a medias), con sesgo a Madrid y caché;
   OSRM sigue calculando la ruta. `TAXI_PHOTON_URL` para instancia propia.

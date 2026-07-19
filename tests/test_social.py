@@ -27,9 +27,19 @@ class TelegramEspia:
         self.botones: list = []  # botones del último envío con teclado
         self.callbacks: list[tuple[str, str]] = []
         self.documentos: list[tuple[str, str, bytes]] = []  # (chat, nombre, pdf)
+        self.ediciones: list = []  # teclados de editar_botones
+        self.force_replies: list[str] = []  # textos enviados con force_reply
 
-    def enviar(self, chat_id: str, texto: str, botones=None) -> None:
+    def enviar(self, chat_id: str, texto: str, botones=None,
+               forzar_respuesta: bool = False) -> None:
         self.enviados.append((chat_id, texto))
+        if botones:
+            self.botones = botones
+        if forzar_respuesta:
+            self.force_replies.append(texto)
+
+    def editar_botones(self, chat_id, message_id, botones) -> None:
+        self.ediciones.append(botones)
         if botones:
             self.botones = botones
 
@@ -106,7 +116,8 @@ def test_aviso_al_taxista_por_email_y_telegram(client, db, espia):  # noqa: F811
         textos = [b["texto"] for fila in botones for b in fila]
         assert any("Aceptar" in t for t in textos)
         assert any("Rechazar" in t for t in textos)
-        assert any("−10 %" in t for t in textos)
+        assert any("Ajustar el precio" in t for t in textos)
+        assert any("mapa" in t for t in textos)
     finally:
         app.state.telegram_sender = original
 

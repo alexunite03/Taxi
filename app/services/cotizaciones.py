@@ -89,9 +89,13 @@ def crear_cotizacion(
     destino_lugar: Lugar | None = None,
     descuento_pct: int | None = None,
     recogida_eur: Decimal | None = None,
+    precio_pactado: Decimal | None = None,
 ) -> Cotizacion:
     """`descuento_pct` y `recogida_eur` anulan la política por defecto del
-    taxista para esta cotización (p. ej. al aceptar un viaje de la bolsa)."""
+    taxista para esta cotización (p. ej. al aceptar un viaje de la bolsa).
+    `precio_pactado`: precio exacto elegido por el taxista; siempre por
+    debajo del máximo regulado (el precio cerrado es un tope legal), queda
+    reflejado en el payload auditable."""
     if fecha_hora_recogida.tzinfo is None:
         raise AntelacionInvalida("La fecha de recogida necesita zona horaria")
     _validar_antelacion(tenant, fecha_hora_recogida)
@@ -130,6 +134,19 @@ def crear_cotizacion(
         descuento_pct=Decimal(str(descuento_pct)),
     )
 
+    precio, payload = resultado.precio, resultado.payload
+    if precio_pactado is not None:
+        precio_pactado = Decimal(str(precio_pactado)).quantize(Decimal("0.01"))
+        if precio_pactado <= 0:
+            raise ErrorCotizacion("El precio pactado debe ser mayor que cero")
+        if precio_pactado > precio:
+            raise ErrorCotizacion(
+                f"El precio pactado no puede superar el máximo legal ({precio} €)"
+            )
+        payload = dict(payload, precio_maximo=str(precio),
+                       precio_pactado=str(precio_pactado))
+        precio = precio_pactado
+
     cotizacion = Cotizacion(
         tenant_id=tenant.id,
         origen_texto=origen.texto,
@@ -143,9 +160,9 @@ def crear_cotizacion(
         importe_peaje=peaje if peaje else None,
         dist_km=ruta.dist_km_total,
         ruta_geojson=ruta.geometria,
-        precio=resultado.precio,
+        precio=precio,
         descuento_contaminacion=resultado.payload["descuento_no2"] is not None,
-        calculo_payload=resultado.payload,
+        calculo_payload=payload,
         version_tarifas=resultado.version_tarifas,
         expira_en=datetime.now(timezone.utc)
         + timedelta(minutes=settings.cotizacion_ttl_min),

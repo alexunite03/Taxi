@@ -39,6 +39,11 @@ máximo; confírmalo o mejóralo con un descuento.</p>
             {% endfor %}
           </select>
         </div>
+        <div class="campo" style="margin:.25rem 0">
+          <label for="pfinal-{{ s.id }}">Precio exacto (opcional)</label>
+          <input type="number" id="pfinal-{{ s.id }}" name="precio_final" min="0.05"
+                 max="{{ s.precio_estimado }}" step="0.05" placeholder="{{ s.precio_estimado }}">
+        </div>
         <input type="hidden" name="recogida_eur" value="{{ tenant.recogida_eur }}">
         <button type="submit" class="principal" style="width:auto">✅ Aceptar</button>
       </form>
@@ -91,6 +96,11 @@ que acepta se lo lleva.</p>
           <label for="rec-{{ s.id }}">Recogida (0–5 €)</label>
           <input type="number" id="rec-{{ s.id }}" name="recogida_eur" min="0" max="5"
                  step="0.50" value="{{ tenant.recogida_eur }}">
+        </div>
+        <div class="campo" style="margin:.25rem 0">
+          <label for="pf-{{ s.id }}">Precio exacto (opcional)</label>
+          <input type="number" id="pf-{{ s.id }}" name="precio_final" min="0.05"
+                 step="0.05" placeholder="{{ s.precio_estimado }}">
         </div>
         <button type="submit" class="principal" style="width:auto">Confirmar y aceptar</button>
       </form>

@@ -411,6 +411,7 @@ def aceptar_viaje(
     solicitud_id: uuid.UUID,
     descuento_pct: int = Form(0),
     recogida_eur: float = Form(5.0),
+    precio_final: str = Form(""),
     tenant: Tenant = Depends(tenant_sesion),
     db: Session = Depends(get_db),
     provs=Depends(proveedores),
@@ -419,11 +420,20 @@ def aceptar_viaje(
 ):
     if not (0 <= descuento_pct <= 30 and 0 <= recogida_eur <= 5):
         raise HTTPException(422, "Ajuste de precio fuera de los límites (0–30 %, 0–5 €)")
+    precio_pactado = None
+    if precio_final.strip():
+        from decimal import Decimal, InvalidOperation
+
+        try:
+            precio_pactado = Decimal(precio_final.replace("€", "").replace(",", ".").strip())
+        except InvalidOperation:
+            raise HTTPException(422, "El precio exacto no es un importe válido")
     geocoder, rutas = provs
     try:
         solicitud, reserva = aceptar_solicitud(
             db, tenant, solicitud_id, geocoder, rutas,
             descuento_pct=descuento_pct, recogida_eur=recogida_eur,
+            precio_pactado=precio_pactado,
         )
     except (ErrorBolsa, ErrorCotizacion, ErrorReserva) as e:
         raise HTTPException(422, str(e))

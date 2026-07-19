@@ -262,6 +262,7 @@ def aceptar_solicitud(
     rutas: RouteProvider,
     descuento_pct: int | None = None,
     recogida_eur=None,
+    precio_pactado=None,
 ):
     """Primer taxista que llega, se lo lleva: bloqueo de la fila y
     comprobación del estado dentro de la transacción."""
@@ -299,6 +300,7 @@ def aceptar_solicitud(
         destino_lugar=Lugar(solicitud.destino_texto, solicitud.destino_lat, solicitud.destino_lng),
         descuento_pct=descuento_pct,
         recogida_eur=recogida_eur,
+        precio_pactado=precio_pactado,
     )
     reserva = aceptar_reserva(
         db,

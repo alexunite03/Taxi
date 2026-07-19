@@ -211,22 +211,66 @@ def _telegram_con_hoja(
     telegram.enviar(chat_id, texto, botones=botones)
 
 
-def _botones_solicitud(solicitud) -> list:
+def _precio_con_descuento(solicitud, pct: int) -> str:
+    from decimal import ROUND_HALF_UP, Decimal
+
+    base = Decimal(str(solicitud.precio_estimado))
+    con_dto = base * (Decimal(100 - pct) / 100)
+    # Redondeo comercial a 0,05 €, como el motor
+    return str((con_dto / Decimal("0.05")).quantize(0, ROUND_HALF_UP) * Decimal("0.05"))
+
+
+def botones_solicitud(solicitud) -> list:
+    """Menú principal del aviso: aceptar, ajustar el precio, ver la
+    recogida en el mapa y rechazar (o abrir la bolsa)."""
     sid = str(solicitud.id)
+    mapa = (f"https://www.google.com/maps/search/?api=1&query="
+            f"{solicitud.origen_lat},{solicitud.origen_lng}")
+    ultima = ([{"texto": "🗺 Recogida en el mapa", "url": mapa},
+               {"texto": "❌ Rechazar", "datos": f"sol:{sid}:r"}]
+              if solicitud.tenant_destino_id else
+              [{"texto": "🗺 Recogida en el mapa", "url": mapa},
+               {"texto": "🌐 Ver bolsa", "url": f"{settings.base_url}/panel/bolsa"}])
     return [
         [{"texto": f"✅ Aceptar · {solicitud.precio_estimado} €",
           "datos": f"sol:{sid}:a:0"}],
-        [{"texto": "💶 Aceptar con −5 %", "datos": f"sol:{sid}:a:5"},
-         {"texto": "💶 −10 %", "datos": f"sol:{sid}:a:10"}],
-        [{"texto": "❌ Rechazar", "datos": f"sol:{sid}:r"}]
-        if solicitud.tenant_destino_id else
-        [{"texto": "🌐 Ver bolsa", "url": f"{settings.base_url}/panel/bolsa"}],
+        [{"texto": "💶 Ajustar el precio…", "datos": f"sol:{sid}:m"}],
+        ultima,
     ]
+
+
+def botones_precio(solicitud) -> list:
+    """Submenú de precio: descuentos con el importe resultante ya calculado
+    y opción de escribir un precio exacto."""
+    sid = str(solicitud.id)
+    def boton(pct):
+        return {"texto": f"−{pct} % · {_precio_con_descuento(solicitud, pct)} €",
+                "datos": f"sol:{sid}:a:{pct}"}
+    return [
+        [boton(5), boton(10)],
+        [boton(15), boton(20)],
+        [boton(25), boton(30)],
+        [{"texto": "✏️ Escribir otro precio", "datos": f"sol:{sid}:p"}],
+        [{"texto": "⬅ Volver", "datos": f"sol:{sid}:v"}],
+    ]
+
+
+def _nota_distancia(tenant, solicitud) -> str:
+    """Línea de ubicación para el aviso: a qué distancia está la recogida
+    de la posición del taxista, o cómo activar el dato si no la comparte."""
+    if tenant.ubicacion_lat is None or tenant.ubicacion_lng is None:
+        return ("📍 Comparte tu ubicación con este chat y te diré a qué "
+                "distancia tienes cada recogida.")
+    from app.services.bolsa import distancia_km
+
+    d = distancia_km(tenant.ubicacion_lat, tenant.ubicacion_lng,
+                     solicitud.origen_lat, solicitud.origen_lng)
+    return f"📍 Recogida a {d:.1f} km de tu posición."
 
 
 def notificar_solicitud_directa(db: Session, sender, telegram, solicitud):
     """Reserva directa: el taxista destinatario recibe la hoja de ruta con
-    botones para aceptar (con o sin descuento) o rechazar."""
+    el menú para aceptar (ajustando el precio si quiere) o rechazar."""
     tenant = solicitud.tenant_destino
     if tenant is None:
         return
@@ -246,8 +290,9 @@ def notificar_solicitud_directa(db: Session, sender, telegram, solicitud):
         try:
             _telegram_con_hoja(
                 telegram, tenant.telegram_chat_id,
-                "🚕 Reserva nueva pendiente de tu confirmación",
-                solicitud, botones=_botones_solicitud(solicitud),
+                "🚕 Reserva nueva pendiente de tu confirmación\n"
+                + _nota_distancia(tenant, solicitud),
+                solicitud, botones=botones_solicitud(solicitud),
             )
         except Exception:
             logger.exception("Fallo avisando reserva directa por Telegram a %s", tenant.id)
@@ -344,7 +389,7 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
 
     # El PDF y los botones son iguales para todos: se generan una sola vez
     adjuntos = _pdf_hoja(solicitud)
-    botones = _botones_solicitud(solicitud)
+    botones = botones_solicitud(solicitud)
 
     enviados = 0
     for t in disponibles:
