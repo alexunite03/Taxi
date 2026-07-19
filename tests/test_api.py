@@ -227,6 +227,33 @@ def test_justificante_archivado_con_hash(client, db):
     assert "IVA incluido" in contenido
 
 
+def test_justificante_se_regenera_si_el_disco_se_vacia(client, db):
+    """En un PaaS el disco es efímero: tras un redeploy los archivos ya no
+    están. El documento debe regenerarse desde la copia en la BD."""
+    from pathlib import Path
+
+    from app.models import Reserva
+    from app.services.notificaciones import _adjunto_justificante
+
+    cot = pedir_cotizacion(client).json()
+    reservar_directa(client, db, cot["cotizacion_id"])
+    j = db.execute(select(Justificante)).scalar_one()
+    original = Path(j.html_path).read_text()
+    Path(j.html_path).unlink()  # «redeploy»: el disco se vacía
+
+    client.post("/panel/login", data={"email": "demo@example.com",
+                                      "password": "demo1234"})
+    r = client.get(f"/panel/reservas/{j.reserva_id}/justificante")
+    assert r.status_code == 200
+    assert Path(j.html_path).read_text() == original
+
+    # El adjunto del email también se recupera
+    Path(j.html_path).unlink()
+    reserva = db.get(Reserva, j.reserva_id)
+    adjuntos = _adjunto_justificante(reserva)
+    assert adjuntos and adjuntos[0].nombre.endswith(".html")
+
+
 def test_cotizacion_no_reutilizable(client, db):
     cot = pedir_cotizacion(client).json()
     datos = {

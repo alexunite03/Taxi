@@ -208,9 +208,13 @@ def descargar_justificante(
     ).scalar_one_or_none()
     if j is None:
         raise HTTPException(404, "Justificante no encontrado")
-    if j.pdf_path:
+    from pathlib import Path
+
+    from app.services.justificantes import asegurar_archivo
+
+    if j.pdf_path and Path(j.pdf_path).exists():
         return FileResponse(j.pdf_path, media_type="application/pdf")
-    return FileResponse(j.html_path, media_type="text/html")
+    return FileResponse(asegurar_archivo(j), media_type="text/html")
 
 
 @router.get("/bolsa", response_class=HTMLResponse)

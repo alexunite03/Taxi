@@ -48,9 +48,16 @@ def _adjunto_justificante(reserva: Reserva) -> list[Adjunto]:
     j = reserva.justificante
     if j is None:
         return []
-    ruta = Path(j.pdf_path or j.html_path)
-    if not ruta.exists():
-        return []
+    from .justificantes import asegurar_archivo
+
+    if j.pdf_path and Path(j.pdf_path).exists():
+        ruta = Path(j.pdf_path)
+    else:
+        try:
+            ruta = asegurar_archivo(j)  # el disco del PaaS es efímero
+        except Exception:
+            logger.exception("No se pudo recuperar el justificante %s", j.id)
+            return []
     return [Adjunto(nombre=f"justificante-{j.serie}-{j.numero:06d}{ruta.suffix}",
                     contenido=ruta.read_bytes())]
 

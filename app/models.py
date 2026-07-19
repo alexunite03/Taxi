@@ -19,6 +19,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
 )
@@ -192,6 +193,9 @@ class Justificante(Base):
     numero: Mapped[int] = mapped_column(Integer)
     pdf_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     html_path: Mapped[str] = mapped_column(String(255))
+    # Copia del documento en la BD: el disco de los PaaS es efímero y el
+    # archivo puede desaparecer en cada redeploy; de aquí se regenera.
+    html: Mapped[str | None] = mapped_column(Text, nullable=True)
     hash_documento: Mapped[str] = mapped_column(String(64))
     emitido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 

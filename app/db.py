@@ -53,6 +53,7 @@ _COLUMNAS_NUEVAS = [
     ("tenants", "radio_km", "FLOAT"),
     ("solicitudes_viaje", "tenant_destino_id", "UUID"),
     ("solicitudes_viaje", "cotizacion_id", "UUID"),
+    ("justificantes", "html", "TEXT"),
 ]
 
 

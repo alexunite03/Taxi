@@ -82,8 +82,25 @@ def emitir_justificante(db: Session, reserva: Reserva) -> Justificante:
         numero=numero,
         html_path=str(html_path),
         pdf_path=str(pdf_path) if pdf_path else None,
+        html=html,
         hash_documento=hashlib.sha256(html.encode()).hexdigest(),
     )
     db.add(justificante)
     db.flush()
     return justificante
+
+
+def asegurar_archivo(justificante: Justificante) -> Path:
+    """Ruta del documento HTML, regenerándolo si el disco lo perdió (en un
+    PaaS el sistema de archivos es efímero: cada redeploy lo vacía). El
+    contenido sale de la copia en la base de datos; para justificantes
+    antiguos sin copia se re-renderiza desde la reserva."""
+    ruta = Path(justificante.html_path)
+    if ruta.exists():
+        return ruta
+    html = justificante.html or render_html(
+        justificante.reserva, justificante.serie, justificante.numero
+    )
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_text(html, encoding="utf-8")
+    return ruta
