@@ -85,8 +85,8 @@ def _procesar_callback(request: Request, db: Session, telegram, callback: dict) 
         rechazar_solicitud,
     )
     from app.services.notificaciones import (
-        hoja_de_ruta,
         notificar_confirmacion,
+        notificar_hoja_de_ruta_taxista,
         notificar_rechazo_pasajero,
     )
 
@@ -139,11 +139,17 @@ def _procesar_callback(request: Request, db: Session, telegram, callback: dict) 
     notificar_confirmacion(db, request.app.state.email_sender, reserva)
     avisar("✅ Viaje aceptado")
     extra = f" (descuento del {pct} %)" if pct else ""
-    responder_chat(
-        f"✅ Viaje aceptado por {reserva.precio_cerrado} €{extra}.\n\n"
-        f"{hoja_de_ruta(solicitud)}\n\n"
-        f"Justificante: {settings.base_url}/r/{reserva.token_publico}"
-    )
+    try:
+        # Hoja de ruta definitiva en PDF por Telegram y por email
+        notificar_hoja_de_ruta_taxista(
+            db, request.app.state.email_sender, telegram, solicitud, reserva
+        )
+    except Exception:
+        logger.exception("Fallo enviando la hoja de ruta tras aceptar %s", solicitud_id)
+        responder_chat(
+            f"✅ Viaje aceptado por {reserva.precio_cerrado} €{extra}.\n"
+            f"Justificante: {settings.base_url}/r/{reserva.token_publico}"
+        )
     return {"ok": True}
 
 

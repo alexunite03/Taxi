@@ -56,6 +56,15 @@ def crear_app() -> FastAPI:
         "telegram", crear_telegram_sender, ConsoleTelegramSender
     )
 
+    # Deja en los logs qué proveedor quedó activo en cada canal: si pone
+    # "Console…", ese canal NO envía nada real (faltan variables TAXI_*).
+    for canal, sender in (("email", app.state.email_sender),
+                          ("push", app.state.push_sender),
+                          ("telegram", app.state.telegram_sender)):
+        clase = type(sender).__name__
+        aviso = " — SOLO CONSOLA, no envía nada real" if clase.startswith("Console") else ""
+        print(f"Canal {canal}: {clase}{aviso}", flush=True)
+
     app.mount(
         "/static",
         StaticFiles(directory=Path(__file__).resolve().parent / "web" / "static"),

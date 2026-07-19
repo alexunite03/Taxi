@@ -24,8 +24,9 @@ HOTEL = {
 class TelegramEspia:
     def __init__(self):
         self.enviados: list[tuple[str, str]] = []
-        self.botones: list = []  # botones del último enviar con teclado
+        self.botones: list = []  # botones del último envío con teclado
         self.callbacks: list[tuple[str, str]] = []
+        self.documentos: list[tuple[str, str, bytes]] = []  # (chat, nombre, pdf)
 
     def enviar(self, chat_id: str, texto: str, botones=None) -> None:
         self.enviados.append((chat_id, texto))
@@ -34,6 +35,12 @@ class TelegramEspia:
 
     def responder_callback(self, callback_id: str, texto: str = "") -> None:
         self.callbacks.append((callback_id, texto))
+
+    def enviar_documento(self, chat_id, nombre, contenido, caption="", botones=None):
+        self.documentos.append((chat_id, nombre, contenido))
+        self.enviados.append((chat_id, caption))  # el caption hace de mensaje
+        if botones:
+            self.botones = botones
 
 
 def con_telegram_espia():

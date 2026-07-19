@@ -23,6 +23,7 @@ from .deps import (
     parsear_fecha_recogida,
     proveedores,
     push_sender,
+    telegram_sender,
     tenant_sesion,
 )
 
@@ -334,6 +335,7 @@ def aceptar_viaje(
     db: Session = Depends(get_db),
     provs=Depends(proveedores),
     sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
 ):
     if not (0 <= descuento_pct <= 30 and 0 <= recogida_eur <= 5):
         raise HTTPException(422, "Ajuste de precio fuera de los límites (0–30 %, 0–5 €)")
@@ -345,9 +347,13 @@ def aceptar_viaje(
         )
     except (ErrorBolsa, ErrorCotizacion, ErrorReserva) as e:
         raise HTTPException(422, str(e))
-    from app.services.notificaciones import notificar_confirmacion
+    from app.services.notificaciones import (
+        notificar_confirmacion,
+        notificar_hoja_de_ruta_taxista,
+    )
 
     notificar_confirmacion(db, sender, reserva)
+    notificar_hoja_de_ruta_taxista(db, sender, telegram, solicitud, reserva)
     return RedirectResponse("/panel/bolsa", status_code=303)
 
 

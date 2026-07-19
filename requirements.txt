@@ -9,6 +9,7 @@ itsdangerous>=2.1
 segno>=1.6
 pywebpush>=2.0
 psycopg[binary]>=3.1
+fpdf2>=2.8                 # hoja de ruta en PDF (Python puro)
 
 # Producción (opcionales en desarrollo):
 # weasyprint>=60           # PDF del justificante (requiere pango/cairo del sistema)

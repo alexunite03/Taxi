@@ -196,18 +196,54 @@ def notificar_taxista_reserva(db: Session, sender, telegram, reserva: Reserva):
     db.commit()
 
 
-def hoja_de_ruta(solicitud) -> str:
-    """Resumen del viaje para el taxista (Telegram/email)."""
+def hoja_de_ruta(solicitud, reserva=None) -> str:
+    """Resumen del viaje para el taxista (Telegram/email). Con `reserva`,
+    muestra el precio cerrado definitivo en vez del máximo."""
+    if reserva is not None:
+        precio = f"💶 Precio cerrado: {reserva.precio_cerrado} € (IVA incluido)"
+    else:
+        precio = f"💶 Precio máximo: {solicitud.precio_estimado} € (IVA incluido)"
     lineas = [
         f"🕐 {solicitud.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M')}",
         f"🟢 Recogida: {solicitud.origen_texto}",
         f"🏁 Destino: {solicitud.destino_texto}",
-        f"💶 Precio máximo: {solicitud.precio_estimado} € (IVA incluido)",
+        precio,
         f"👤 {solicitud.nombre} · {solicitud.telefono}",
     ]
     if solicitud.intermediario is not None:
         lineas.append(f"🏨 Pedido por {solicitud.intermediario.nombre}")
     return "\n".join(lineas)
+
+
+def _pdf_hoja(solicitud, reserva=None) -> list[Adjunto]:
+    """Hoja de ruta en PDF para adjuntar; si falla, el aviso sale sin ella."""
+    try:
+        from .hoja_ruta_pdf import pdf_hoja_de_ruta
+
+        return [Adjunto(nombre="hoja-de-ruta.pdf",
+                        contenido=pdf_hoja_de_ruta(solicitud, reserva))]
+    except Exception:
+        logger.exception("No se pudo generar el PDF de la hoja de ruta")
+        return []
+
+
+def _telegram_con_hoja(
+    telegram, chat_id, encabezado, solicitud, botones=None, reserva=None
+) -> None:
+    """Envía por Telegram la hoja de ruta como PDF con el texto y los
+    botones; si el documento falla, degrada a mensaje de texto."""
+    texto = f"{encabezado}\n\n{hoja_de_ruta(solicitud, reserva)}"
+    adjuntos = _pdf_hoja(solicitud, reserva)
+    if adjuntos:
+        try:
+            telegram.enviar_documento(
+                chat_id, adjuntos[0].nombre, adjuntos[0].contenido,
+                caption=texto, botones=botones,
+            )
+            return
+        except Exception:
+            logger.exception("Fallo enviando el PDF por Telegram a %s", chat_id)
+    telegram.enviar(chat_id, texto, botones=botones)
 
 
 def _botones_solicitud(solicitud) -> list:
@@ -236,19 +272,48 @@ def notificar_solicitud_directa(db: Session, sender, telegram, solicitud):
             asunto=f"Reserva pendiente: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
             html=("<p>Tienes una reserva pendiente de aceptar:</p>"
                   f"<pre>{hoja}</pre>"
-                  f"<p><a href='{settings.base_url}/panel'>Aceptar o rechazar en tu panel</a></p>"),
+                  f"<p><a href='{settings.base_url}/panel/bolsa'>Aceptar o rechazar en tu panel</a></p>"),
+            adjuntos=_pdf_hoja(solicitud),
         ))
     except Exception:
         logger.exception("Fallo avisando reserva directa por email a %s", tenant.id)
     if tenant.telegram_chat_id:
         try:
-            telegram.enviar(
-                tenant.telegram_chat_id,
-                f"🚕 Reserva nueva pendiente de tu confirmación\n\n{hoja}",
-                botones=_botones_solicitud(solicitud),
+            _telegram_con_hoja(
+                telegram, tenant.telegram_chat_id,
+                "🚕 Reserva nueva pendiente de tu confirmación",
+                solicitud, botones=_botones_solicitud(solicitud),
             )
         except Exception:
             logger.exception("Fallo avisando reserva directa por Telegram a %s", tenant.id)
+
+
+def notificar_hoja_de_ruta_taxista(db: Session, sender, telegram, solicitud, reserva):
+    """Tras aceptar: el taxista recibe la hoja de ruta definitiva (precio
+    cerrado y justificante) en PDF por email y por Telegram."""
+    tenant = reserva.tenant
+    hoja = hoja_de_ruta(solicitud, reserva)
+    j = reserva.justificante
+    numero = f" · justificante {j.serie}-{j.numero:06d}" if j else ""
+    try:
+        sender.enviar(Email(
+            para=tenant.email,
+            asunto=f"Hoja de ruta: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')}{numero}",
+            html=(f"<p>Reserva confirmada:</p><pre>{hoja}</pre>"
+                  f"<p><a href='{settings.base_url}/r/{reserva.token_publico}'>Ver la reserva</a></p>"),
+            adjuntos=_pdf_hoja(solicitud, reserva),
+        ))
+    except Exception:
+        logger.exception("Fallo enviando la hoja de ruta por email a %s", tenant.id)
+    if tenant.telegram_chat_id:
+        try:
+            _telegram_con_hoja(
+                telegram, tenant.telegram_chat_id,
+                f"✅ Reserva confirmada{numero}\n{settings.base_url}/r/{reserva.token_publico}",
+                solicitud, reserva=reserva,
+            )
+        except Exception:
+            logger.exception("Fallo enviando la hoja de ruta por Telegram a %s", tenant.id)
 
 
 def notificar_rechazo_pasajero(db: Session, sender, solicitud):
@@ -330,16 +395,16 @@ def avisar_bolsa_nueva_solicitud(db: Session, sender, telegram, solicitud) -> in
                 para=t.email,
                 asunto="Viaje nuevo en la bolsa",
                 html=f"<p>{texto}</p><p><a href='{settings.base_url}/panel/bolsa'>Ver la bolsa</a></p>",
+                adjuntos=_pdf_hoja(solicitud),
             ))
             enviados += 1
         except Exception:
             logger.exception("Fallo avisando bolsa por email a %s", t.id)
         if t.telegram_chat_id:
             try:
-                telegram.enviar(
-                    t.telegram_chat_id,
-                    f"🚕 {texto}\n\n{hoja_de_ruta(solicitud)}",
-                    botones=_botones_solicitud(solicitud),
+                _telegram_con_hoja(
+                    telegram, t.telegram_chat_id, f"🚕 {texto}",
+                    solicitud, botones=_botones_solicitud(solicitud),
                 )
                 enviados += 1
             except Exception:

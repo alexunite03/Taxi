@@ -177,8 +177,11 @@ def test_telegram_acepta_con_descuento(client, db, espia):  # noqa: F811
         solicitud = db.execute(select(SolicitudViaje)).scalar_one()
         reserva = db.get(Reserva, solicitud.reserva_id)
         assert Decimal(str(reserva.precio_cerrado)) < estimado
-        assert any("descuento del 10 %" in t
+        # La confirmación lleva el precio cerrado definitivo y el PDF
+        assert any(f"Precio cerrado: {reserva.precio_cerrado}" in t
                    for _, t in app.state.telegram_sender.enviados)
+        assert any(n == "hoja-de-ruta.pdf" and c.startswith(b"%PDF")
+                   for _, n, c in app.state.telegram_sender.documentos)
     finally:
         app.state.telegram_sender = original
 
@@ -203,6 +206,44 @@ def test_telegram_rechaza_con_boton(client, db, espia):  # noqa: F811
             "no está pendiente" in app.state.telegram_sender.callbacks[-1][1]
     finally:
         app.state.telegram_sender = original
+
+
+def test_hoja_de_ruta_en_pdf_por_email_y_telegram(client, db, espia):  # noqa: F811
+    original = con_telegram_espia()
+    try:
+        _vincular(client, db)
+        solicitar(client, email="ana@example.com")
+        solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+
+        # El aviso de solicitud pendiente lleva el PDF en ambos canales
+        tg = app.state.telegram_sender
+        assert any(n == "hoja-de-ruta.pdf" and c.startswith(b"%PDF")
+                   for _, n, c in tg.documentos)
+        aviso = next(e for e in espia.enviados if "pendiente" in e.asunto)
+        assert any(a.nombre == "hoja-de-ruta.pdf" and a.contenido.startswith(b"%PDF")
+                   for a in aviso.adjuntos)
+
+        # Al aceptar desde el panel, llega la hoja definitiva con justificante
+        r = client.post(f"/panel/solicitudes/{solicitud.id}/aceptar",
+                        data={"descuento_pct": "0", "recogida_eur": "5"},
+                        follow_redirects=False)
+        assert r.status_code == 303
+        confirmada = next(e for e in espia.enviados if "Hoja de ruta" in e.asunto)
+        assert "justificante" in confirmada.asunto
+        assert any(a.nombre == "hoja-de-ruta.pdf" for a in confirmada.adjuntos)
+        assert len(tg.documentos) >= 2  # pendiente + confirmada
+        assert any("Reserva confirmada" in t for _, t in tg.enviados)
+    finally:
+        app.state.telegram_sender = original
+
+
+def test_pdf_hoja_de_ruta_contenido(client, db):
+    from app.services.hoja_ruta_pdf import pdf_hoja_de_ruta
+
+    solicitar(client)
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    pdf = pdf_hoja_de_ruta(solicitud)
+    assert pdf.startswith(b"%PDF") and len(pdf) > 500
 
 
 def test_callback_de_chat_sin_vincular(client, db, espia):  # noqa: F811
