@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     # Email transaccional (plan §5): console (desarrollo) | resend | smtp
     email_provider: str = "console"
     resend_api_key: str = ""
+    brevo_api_key: str = ""
     email_from: str = "Reservas <reservas@example.com>"
     # SMTP (p. ej. Gmail con contraseña de aplicación) — la vía más rápida
     smtp_host: str = "smtp.gmail.com"

@@ -2,7 +2,12 @@
 
 Proveedores conmutables por configuración:
 - `console` (desarrollo): imprime el email en el log, no sale nada a la red.
+- `brevo`: API HTTP de Brevo (300 emails/día gratis; basta verificar un
+  remitente, sin dominio propio). La opción para PaaS que bloquean SMTP
+  saliente, como Render.
 - `resend`: API HTTP de Resend. Requiere dominio con SPF/DKIM configurados.
+- `smtp`: SMTP clásico (Gmail…). OJO: Render bloquea los puertos SMTP
+  salientes; ahí usa `brevo` o `resend`.
 
 Añadir SES u otro proveedor es implementar `EmailSender.enviar`.
 """
@@ -80,6 +85,48 @@ class SMTPEmailSender:
             servidor.starttls()
             servidor.login(self.usuario, self.password)
             servidor.send_message(m)
+
+
+def _partir_remitente(remitente: str) -> tuple[str, str]:
+    """'Reservas <yo@gmail.com>' → ('Reservas', 'yo@gmail.com')."""
+    if "<" in remitente and remitente.rstrip().endswith(">"):
+        nombre, _, resto = remitente.partition("<")
+        return nombre.strip() or "Reservas", resto.rstrip(">").strip()
+    return "Reservas", remitente.strip()
+
+
+class BrevoEmailSender:
+    """Brevo (antes Sendinblue) por API HTTP: funciona en PaaS que bloquean
+    SMTP saliente. El remitente debe estar verificado en la cuenta."""
+
+    URL = "https://api.brevo.com/v3/smtp/email"
+
+    def __init__(self, api_key: str, remitente: str):
+        self.api_key = api_key
+        self.nombre, self.email_remitente = _partir_remitente(remitente)
+
+    def enviar(self, email: Email) -> None:
+        cuerpo = {
+            "sender": {"name": self.nombre, "email": self.email_remitente},
+            "to": [{"email": email.para}],
+            "subject": email.asunto,
+            "htmlContent": email.html,
+        }
+        if email.adjuntos:
+            cuerpo["attachment"] = [
+                {"name": a.nombre, "content": base64.b64encode(a.contenido).decode()}
+                for a in email.adjuntos
+            ]
+        resp = httpx.post(
+            self.URL,
+            json=cuerpo,
+            headers={"api-key": self.api_key, "accept": "application/json"},
+            timeout=15,
+        )
+        if resp.status_code >= 400:
+            # El detalle de Brevo (p. ej. «sender not valid») vale oro al
+            # diagnosticar desde el probador del panel
+            raise RuntimeError(f"Brevo {resp.status_code}: {resp.text[:300]}")
 
 
 class ResendEmailSender:

@@ -1,5 +1,6 @@
 from .email import (
     Adjunto,
+    BrevoEmailSender,
     ConsoleEmailSender,
     Email,
     EmailSender,
@@ -29,6 +30,10 @@ def crear_email_sender() -> EmailSender:
             settings.smtp_host, settings.smtp_port,
             settings.smtp_user, settings.smtp_password, settings.email_from,
         )
+    if settings.email_provider == "brevo":
+        if not settings.brevo_api_key:
+            raise RuntimeError("TAXI_BREVO_API_KEY es obligatoria con email_provider=brevo")
+        return BrevoEmailSender(settings.brevo_api_key, settings.email_from)
     if settings.email_provider == "resend":
         if not settings.resend_api_key:
             raise RuntimeError("TAXI_RESEND_API_KEY es obligatoria con email_provider=resend")
@@ -65,6 +70,7 @@ def crear_push_sender() -> PushSender:
 
 __all__ = [
     "Adjunto",
+    "BrevoEmailSender",
     "ConsoleEmailSender",
     "ConsolePushSender",
     "Email",

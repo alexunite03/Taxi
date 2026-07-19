@@ -105,6 +105,54 @@ def test_probador_de_avisos_en_el_panel(client, db):
         app.state.email_sender = original_email
 
 
+def test_brevo_sender(monkeypatch):
+    import httpx
+
+    from app.notificaciones import BrevoEmailSender
+
+    peticiones = []
+
+    def falso_post(url, **kwargs):
+        peticiones.append((url, kwargs))
+        return httpx.Response(201, json={"messageId": "x"},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", falso_post)
+    sender = BrevoEmailSender("clave-api", "Reservas <yo@gmail.com>")
+    sender.enviar(Email(
+        para="cliente@example.com", asunto="Hola", html="<p>Hola</p>",
+        adjuntos=[Adjunto(nombre="hoja-de-ruta.pdf", contenido=b"%PDF-...")],
+    ))
+    url, kwargs = peticiones[0]
+    assert url == BrevoEmailSender.URL
+    assert kwargs["headers"]["api-key"] == "clave-api"
+    cuerpo = kwargs["json"]
+    assert cuerpo["sender"] == {"name": "Reservas", "email": "yo@gmail.com"}
+    assert cuerpo["to"] == [{"email": "cliente@example.com"}]
+    assert cuerpo["attachment"][0]["name"] == "hoja-de-ruta.pdf"
+
+    # Un 4xx de Brevo se convierte en un error legible (para el probador)
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: httpx.Response(
+        401, text='{"message":"Key not found"}',
+        request=httpx.Request("POST", url)))
+    try:
+        sender.enviar(Email(para="x@example.com", asunto="a", html="b"))
+        assert False, "deberia lanzar RuntimeError"
+    except RuntimeError as e:
+        assert "Brevo 401" in str(e) and "Key not found" in str(e)
+
+
+def test_canal_brevo_configurado(monkeypatch):
+    from app.notificaciones import BrevoEmailSender, crear_email_sender
+
+    anterior = (settings.email_provider, settings.brevo_api_key)
+    settings.email_provider, settings.brevo_api_key = "brevo", "clave"
+    try:
+        assert isinstance(crear_email_sender(), BrevoEmailSender)
+    finally:
+        settings.email_provider, settings.brevo_api_key = anterior
+
+
 def test_smtp_sender(monkeypatch):
     enviados = []
 

@@ -114,18 +114,33 @@ Tests: `.venv/bin/python -m pytest`
 El proveedor `fake` geocodifica y enruta de forma determinista (sin red):
 todo el flujo funciona en local sin API key.
 
-## Activar el correo real (5 minutos, con Gmail)
+## Activar el correo real
 
-1. En tu cuenta de Google: Seguridad → Verificación en dos pasos (actívala)
-   → Contraseñas de aplicaciones → crea una para «Correo».
-2. Variables de entorno:
-   - `TAXI_EMAIL_PROVIDER=smtp`
-   - `TAXI_SMTP_USER=tucuenta@gmail.com`
-   - `TAXI_SMTP_PASSWORD=<la contraseña de aplicación>`
-   - `TAXI_EMAIL_FROM=Reservas <tucuenta@gmail.com>`
-3. Redespliega. Confirmaciones, cancelaciones, recordatorios y avisos al
-   taxista salen por Gmail (límite ~500/día; para volumen, pasa a `resend`
-   con dominio propio).
+**En Render (y otros PaaS) el SMTP saliente está bloqueado** — Gmail por
+SMTP da `Network is unreachable`. Usa un proveedor por API HTTP:
+
+### Opción A: Brevo (gratis 300/día, sin dominio propio) — para Render
+
+1. Crea cuenta en [brevo.com](https://www.brevo.com) y verifica tu email
+   de remitente (Settings → Senders; vale tu Gmail).
+2. Genera una API key (Settings → SMTP & API → API Keys).
+3. Variables de entorno:
+   - `TAXI_EMAIL_PROVIDER=brevo`
+   - `TAXI_BREVO_API_KEY=<tu api key>`
+   - `TAXI_EMAIL_FROM=Reservas <turemitente@gmail.com>` (el verificado)
+4. Redespliega y comprueba con el botón «Enviar un aviso de prueba» del
+   panel → Mi perfil.
+
+### Opción B: SMTP con Gmail (solo si tu servidor permite SMTP saliente)
+
+1. Google: Seguridad → Verificación en dos pasos → Contraseñas de
+   aplicaciones → crea una para «Correo».
+2. `TAXI_EMAIL_PROVIDER=smtp` + `TAXI_SMTP_USER` + `TAXI_SMTP_PASSWORD`
+   (sin espacios) + `TAXI_EMAIL_FROM`.
+
+### Opción C: Resend (volumen, requiere dominio propio con SPF/DKIM)
+
+`TAXI_EMAIL_PROVIDER=resend` + `TAXI_RESEND_API_KEY`.
 
 ## Activar Telegram (10 minutos)
 
