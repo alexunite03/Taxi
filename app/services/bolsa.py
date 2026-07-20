@@ -187,6 +187,72 @@ def solicitar_reserva_directa(
     )
 
 
+def _sin_respuesta(solicitud: SolicitudViaje, ahora: datetime) -> bool:
+    creada = solicitud.creada_en
+    if creada.tzinfo is None:  # SQLite pierde el tzinfo (UTC)
+        creada = creada.replace(tzinfo=timezone.utc)
+    return creada < ahora - timedelta(minutes=settings.solicitud_ttl_min)
+
+
+def caducar_si_procede(db: Session, solicitud: SolicitudViaje) -> SolicitudViaje:
+    """Caducidad perezosa: si una reserva directa lleva demasiado sin
+    respuesta del taxista, se marca al consultarla (la página de espera del
+    pasajero no depende del cron)."""
+    if (solicitud.estado == "abierta" and solicitud.tenant_destino_id
+            and _sin_respuesta(solicitud, datetime.now(timezone.utc))):
+        solicitud.estado = "caducada"
+        db.commit()
+    return solicitud
+
+
+def caducar_solicitudes_directas(db: Session) -> list[SolicitudViaje]:
+    """Barrido del cron: marca caducadas las reservas directas sin
+    respuesta y las devuelve para avisar a sus pasajeros."""
+    ahora = datetime.now(timezone.utc)
+    pendientes = (
+        db.execute(
+            select(SolicitudViaje).where(
+                SolicitudViaje.estado == "abierta",
+                SolicitudViaje.tenant_destino_id.is_not(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    caducadas = [s for s in pendientes if _sin_respuesta(s, ahora)]
+    for s in caducadas:
+        s.estado = "caducada"
+    if caducadas:
+        db.commit()
+    return caducadas
+
+
+def reenviar_a_bolsa(db: Session, solicitud: SolicitudViaje) -> SolicitudViaje:
+    """El taxista no respondió (o rechazó): el pasajero publica el mismo
+    viaje en la bolsa general con un clic."""
+    if solicitud.estado not in ("caducada", "rechazada"):
+        raise ErrorBolsa("Esta solicitud no se puede enviar a la bolsa")
+    return crear_solicitud(
+        db, None, None,
+        nombre=solicitud.nombre,
+        telefono=solicitud.telefono,
+        email=solicitud.email,
+        origen_texto=solicitud.origen_texto,
+        destino_texto=solicitud.destino_texto,
+        fecha_hora_recogida=(
+            solicitud.fecha_hora_recogida
+            if solicitud.fecha_hora_recogida.tzinfo
+            else solicitud.fecha_hora_recogida.replace(tzinfo=TZ_MADRID)
+        ),
+        origen_lugar=Lugar(solicitud.origen_texto, solicitud.origen_lat,
+                           solicitud.origen_lng),
+        destino_lugar=Lugar(solicitud.destino_texto, solicitud.destino_lat,
+                            solicitud.destino_lng),
+        intermediario_id=solicitud.intermediario_id,
+        precio_estimado=solicitud.precio_estimado,
+    )
+
+
 def solicitudes_abiertas(db: Session) -> list[SolicitudViaje]:
     ahora = datetime.now(timezone.utc)
     abiertas = (
@@ -235,8 +301,10 @@ def con_distancia(
 
 
 def solicitudes_pendientes_de(db: Session, tenant: Tenant) -> list[SolicitudViaje]:
-    """Reservas directas esperando la aceptación de este taxista."""
-    return (
+    """Reservas directas esperando la aceptación de este taxista (las que
+    ya vencieron sin respuesta no se ofrecen)."""
+    ahora = datetime.now(timezone.utc)
+    pendientes = (
         db.execute(
             select(SolicitudViaje)
             .where(SolicitudViaje.estado == "abierta",
@@ -246,6 +314,7 @@ def solicitudes_pendientes_de(db: Session, tenant: Tenant) -> list[SolicitudViaj
         .scalars()
         .all()
     )
+    return [s for s in pendientes if not _sin_respuesta(s, ahora)]
 
 
 def solicitud_por_token(db: Session, token: str) -> SolicitudViaje | None:
@@ -273,10 +342,18 @@ def aceptar_solicitud(
     ).scalar_one_or_none()
     if solicitud is None:
         raise ErrorBolsa("La solicitud no existe")
+    if solicitud.estado == "caducada":
+        raise ErrorBolsa("La solicitud caducó sin respuesta; el pasajero "
+                         "puede volver a enviarla desde su enlace")
     if solicitud.estado != "abierta":
         raise ViajeYaAsignado()
     if solicitud.tenant_destino_id and solicitud.tenant_destino_id != tenant.id:
         raise ErrorBolsa("Esta solicitud es de otro taxista")
+    if solicitud.tenant_destino_id and _sin_respuesta(solicitud, datetime.now(timezone.utc)):
+        solicitud.estado = "caducada"
+        db.commit()
+        raise ErrorBolsa("La solicitud caducó sin respuesta; el pasajero "
+                         "puede volver a enviarla desde su enlace")
 
     # Se marca ya como asignada: el commit interno de aceptar_reserva la
     # persistirá junto con la reserva y soltará el bloqueo sin ventana para

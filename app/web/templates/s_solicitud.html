@@ -15,11 +15,22 @@ actualiza sola; guarda el enlace para volver cuando quieras.</p>
 <p class="aviso" role="status">Buscando taxista disponible… Esta página se
 actualiza sola. Guarda el enlace para volver cuando quieras.</p>
 {% elif solicitud.estado == 'rechazada' %}
-<p class="error">El taxista no puede atender este viaje. Puedes publicarlo en
-la <a href="/viaje">bolsa de viajes</a> para que lo acepte otro taxista
-disponible.</p>
+<p class="error">El taxista no puede atender este viaje. Publícalo en la
+bolsa para que lo acepte otro taxista disponible:</p>
+{% elif solicitud.estado == 'caducada' %}
+<p class="error">El taxista no ha respondido a tiempo. Publícalo en la
+bolsa para que lo acepte otro taxista disponible:</p>
 {% elif solicitud.estado == 'cancelada' %}
 <p class="error">Solicitud cancelada.</p>
+{% endif %}
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if solicitud.estado in ('rechazada', 'caducada') %}
+<form method="post" action="/s/{{ solicitud.token_publico }}/a-la-bolsa"
+      style="margin-bottom:1rem">
+  <button type="submit" class="principal">🚕 Enviar a la bolsa de viajes</button>
+</form>
 {% endif %}
 
 <div class="tarjeta-precio">

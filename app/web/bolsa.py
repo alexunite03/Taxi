@@ -100,14 +100,47 @@ def viaje_solicitar(
 
 @router.get("/s/{token}", response_class=HTMLResponse)
 def ver_solicitud(request: Request, token: str, db: Session = Depends(get_db)):
+    from app.services.bolsa import caducar_si_procede
+
     solicitud = solicitud_por_token(db, token)
     if solicitud is None:
         return HTMLResponse("<h1>Solicitud no encontrada</h1>", status_code=404)
     if solicitud.estado == "asignada" and solicitud.reserva is not None:
         return RedirectResponse(f"/r/{solicitud.reserva.token_publico}", status_code=303)
+    solicitud = caducar_si_procede(db, solicitud)
     return templates.TemplateResponse(
         request, "s_solicitud.html", {"solicitud": solicitud}
     )
+
+
+@router.post("/s/{token}/a-la-bolsa")
+def solicitud_a_la_bolsa(
+    request: Request,
+    token: str,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
+):
+    """El taxista no respondió (o rechazó): un clic y el mismo viaje sale
+    publicado en la bolsa general."""
+    from app.services.bolsa import caducar_si_procede, reenviar_a_bolsa
+    from app.services.cotizaciones import ErrorCotizacion
+
+    limitar_por_ip(request)
+    solicitud = solicitud_por_token(db, token)
+    if solicitud is None:
+        return HTMLResponse("<h1>Solicitud no encontrada</h1>", status_code=404)
+    solicitud = caducar_si_procede(db, solicitud)
+    try:
+        nueva = reenviar_a_bolsa(db, solicitud)
+    except (ErrorBolsa, ErrorCotizacion) as e:
+        return templates.TemplateResponse(
+            request, "s_solicitud.html",
+            {"solicitud": solicitud, "error": str(e)}, status_code=422,
+        )
+    background.add_task(tarea_avisar_bolsa, nueva.id, sender, telegram)
+    return RedirectResponse(f"/s/{nueva.token_publico}", status_code=303)
 
 
 @router.post("/s/{token}/cancelar")

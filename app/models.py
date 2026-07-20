@@ -312,7 +312,7 @@ class SolicitudViaje(Base):
     )
 
     precio_estimado: Mapped[float] = mapped_column(Numeric(7, 2))
-    estado: Mapped[str] = mapped_column(String(15), default="abierta")  # abierta | asignada | cancelada | rechazada
+    estado: Mapped[str] = mapped_column(String(15), default="abierta")  # abierta | asignada | cancelada | rechazada | caducada
     reserva_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("reservas.id"), nullable=True
     )

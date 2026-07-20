@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     # Caducidad de la cotización (plan §3): 15 minutos
     cotizacion_ttl_min: int = 15
 
+    # Minutos que tiene el taxista para responder a una reserva directa
+    # antes de que caduque y el pasajero pueda enviarla a la bolsa
+    solicitud_ttl_min: int = 20
+
+    # Token del endpoint /api/cron (recordatorios + caducidades). Llamado
+    # cada pocos minutos por un cron externo (p. ej. cron-job.org), que de
+    # paso mantiene despierta la instancia en planes gratuitos.
+    cron_token: str = ""
+
     # Email transaccional (plan §5): console (desarrollo) | resend | smtp
     email_provider: str = "console"
     resend_api_key: str = ""

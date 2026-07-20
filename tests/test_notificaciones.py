@@ -95,8 +95,12 @@ def test_fallo_del_proveedor_no_rompe_la_reserva(client, db, espia):
 def test_cancelacion_envia_email(client, db, espia):
     cuerpo = reservar(client, db, email="ana@example.com")
     client.post(f"/api/reservas/{cuerpo['reserva_token']}/cancelar")
-    cancelaciones = [e for e in espia.enviados if "cancelada" in e.asunto]
-    assert len(cancelaciones) == 1
+    # Dos avisos: al pasajero y al taxista
+    al_pasajero = [e for e in espia.enviados
+                   if "cancelada" in e.asunto and e.para == "ana@example.com"]
+    assert len(al_pasajero) == 1
+    assert any("cancelada" in e.asunto and e.para == "demo@example.com"
+               for e in espia.enviados)
     # Cancelar de nuevo no reenvía el email
     total = len(espia.enviados)
     client.post(f"/api/reservas/{cuerpo['reserva_token']}/cancelar")

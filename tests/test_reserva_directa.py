@@ -97,7 +97,7 @@ def test_panel_rechaza_y_avisa_al_pasajero(client, db, espia):  # noqa: F811
 
     pagina = client.get(f"/s/{cuerpo['solicitud_token']}")
     assert "no puede atender" in pagina.text
-    assert "/viaje" in pagina.text  # se le ofrece la bolsa
+    assert "Enviar a la bolsa" in pagina.text  # reenvío con un clic
 
 
 def test_solo_el_destinatario_puede_aceptar_o_rechazar(client, db, espia):  # noqa: F811

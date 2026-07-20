@@ -22,7 +22,11 @@ from app.services.cotizaciones import (
     crear_cotizacion,
 )
 from app.services.bolsa import ErrorBolsa, solicitar_reserva_directa
-from app.services.notificaciones import notificar_cancelacion, tarea_solicitud_directa
+from app.services.notificaciones import (
+    notificar_cancelacion,
+    notificar_cancelacion_taxista,
+    tarea_solicitud_directa,
+)
 from app.services.reservas import (
     ErrorReserva,
     cancelar_reserva,
@@ -225,6 +229,7 @@ def cancelar_web(
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
     push=Depends(push_sender),
+    telegram=Depends(telegram_sender),
 ):
     limitar_por_ip(request)
     reserva = reserva_por_token(db, token)
@@ -232,6 +237,7 @@ def cancelar_web(
         try:
             cancelar_reserva(db, reserva)
             notificar_cancelacion(db, sender, push, reserva)
+            notificar_cancelacion_taxista(db, sender, telegram, reserva)
         except ErrorReserva:
             pass
     return RedirectResponse(f"/r/{token}", status_code=303)

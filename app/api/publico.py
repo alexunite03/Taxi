@@ -14,7 +14,11 @@ from app.services.cotizaciones import (
     crear_cotizacion,
 )
 from app.config import settings
-from app.services.notificaciones import notificar_cancelacion, suscribir_push
+from app.services.notificaciones import (
+    notificar_cancelacion,
+    notificar_cancelacion_taxista,
+    suscribir_push,
+)
 from app.services.reservas import (
     ErrorReserva,
     cancelar_reserva,
@@ -195,6 +199,7 @@ def cancelar(
     db: Session = Depends(get_db),
     sender=Depends(email_sender),
     push=Depends(push_sender),
+    telegram=Depends(telegram_sender),
 ):
     limitar_por_ip(request)
     reserva = reserva_por_token(db, token)
@@ -207,6 +212,7 @@ def cancelar(
         raise HTTPException(422, str(e))
     if not ya_cancelada:
         notificar_cancelacion(db, sender, push, reserva)
+        notificar_cancelacion_taxista(db, sender, telegram, reserva)
     return {"estado": reserva.estado}
 
 

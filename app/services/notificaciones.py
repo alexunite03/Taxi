@@ -326,6 +326,52 @@ def notificar_hoja_de_ruta_taxista(db: Session, sender, telegram, solicitud, res
             logger.exception("Fallo enviando la hoja de ruta por Telegram a %s", tenant.id)
 
 
+def notificar_caducidad_pasajero(db: Session, sender, solicitud):
+    """El taxista no respondió a tiempo: se invita al pasajero a enviar el
+    mismo viaje a la bolsa desde su enlace."""
+    if not solicitud.email:
+        return
+    enlace = f"{settings.base_url}/s/{solicitud.token_publico}"
+    try:
+        sender.enviar(Email(
+            para=solicitud.email,
+            asunto="Tu taxista no ha respondido todavía",
+            html=(f"<p>Hola {solicitud.nombre}: el taxista no ha confirmado tu "
+                  f"viaje del {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} "
+                  f"a tiempo. Desde tu enlace puedes publicarlo en la bolsa "
+                  f"para que lo acepte otro taxista disponible: "
+                  f"<a href='{enlace}'>{enlace}</a></p>"),
+        ))
+    except Exception:
+        logger.exception("Fallo avisando caducidad al pasajero %s", solicitud.id)
+
+
+def notificar_cancelacion_taxista(db: Session, sender, telegram, reserva: Reserva):
+    """El pasajero canceló: el taxista se entera al momento por Telegram
+    (y por email) para no hacer el viaje en balde."""
+    tenant = reserva.tenant
+    cot = reserva.cotizacion
+    texto = (
+        f"❌ Reserva cancelada por el pasajero: "
+        f"{cot.fecha_hora_recogida.strftime('%d/%m %H:%M')} · "
+        f"{cot.origen_texto} → {cot.destino_texto} · "
+        f"{reserva.cliente.nombre} ({reserva.cliente.telefono})"
+    )
+    try:
+        sender.enviar(Email(
+            para=tenant.email,
+            asunto=f"Reserva cancelada: {cot.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
+            html=f"<p>{texto}</p><p><a href='{settings.base_url}/panel'>Ver mi agenda</a></p>",
+        ))
+    except Exception:
+        logger.exception("Fallo avisando cancelación por email a %s", tenant.id)
+    if tenant.telegram_chat_id:
+        try:
+            telegram.enviar(tenant.telegram_chat_id, texto)
+        except Exception:
+            logger.exception("Fallo avisando cancelación por Telegram a %s", tenant.id)
+
+
 def notificar_rechazo_pasajero(db: Session, sender, solicitud):
     if not solicitud.email:
         return

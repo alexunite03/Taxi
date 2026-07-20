@@ -164,6 +164,22 @@ SMTP da `Network is unreachable`. Usa un proveedor por API HTTP:
    perfil, y desde ese momento recibe cada reserva y los viajes de la bolsa
    en su móvil. El bot también responde a `/id` para vincular a mano.
 
+## Tareas periódicas y arranque en frío (Render free)
+
+La reserva directa **caduca** si el taxista no responde en
+`TAXI_SOLICITUD_TTL_MIN` minutos (20 por defecto): el pasajero recibe un
+email y puede enviar el viaje a la bolsa con un clic desde su enlace.
+
+Para los recordatorios y el barrido de caducidades sin cron de sistema:
+
+1. Pon `TAXI_CRON_TOKEN=<cadena aleatoria>` en el entorno.
+2. En [cron-job.org](https://cron-job.org) (gratis) crea un job cada 5
+   minutos a `https://TU-APP.onrender.com/api/cron?token=<esa cadena>`.
+
+Cada llamada envía los recordatorios pendientes, caduca las solicitudes
+sin respuesta **y mantiene la instancia despierta** (adiós al arranque en
+frío de ~50 s del plan gratuito).
+
 ## Despliegue
 
 **Esto es un servidor Python, no una web estática: Netlify, GitHub Pages o
