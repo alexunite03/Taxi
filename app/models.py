@@ -323,9 +323,37 @@ class SolicitudViaje(Base):
 
     reserva: Mapped["Reserva | None"] = relationship()
     intermediario: Mapped["Intermediario | None"] = relationship()
+    ofertas: Mapped[list["OfertaViaje"]] = relationship(
+        back_populates="solicitud", order_by="OfertaViaje.creada_en"
+    )
     tenant_destino: Mapped["Tenant | None"] = relationship(
         foreign_keys=[tenant_destino_id]
     )
+
+
+class OfertaViaje(Base):
+    """Oferta de un taxista a una solicitud de la bolsa: se postula con su
+    precio (siempre ≤ su máximo oficial) y EL PASAJERO ELIGE. La plataforma
+    no asigna ni subasta: lista las ofertas por orden de llegada."""
+
+    __tablename__ = "ofertas_viaje"
+    __table_args__ = (UniqueConstraint("solicitud_id", "tenant_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    solicitud_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("solicitudes_viaje.id"), index=True
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
+
+    # Lo que verá el pasajero y los parámetros para reproducirlo al elegir
+    precio: Mapped[float] = mapped_column(Numeric(7, 2))
+    descuento_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    recogida_eur: Mapped[float | None] = mapped_column(Numeric(4, 2), nullable=True)
+    precio_pactado: Mapped[float | None] = mapped_column(Numeric(7, 2), nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    tenant: Mapped[Tenant] = relationship()
+    solicitud: Mapped["SolicitudViaje"] = relationship(back_populates="ofertas")
 
 
 class Valoracion(Base):

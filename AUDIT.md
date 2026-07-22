@@ -182,13 +182,13 @@ transporta.
 
 ## 6. Decisiones que corresponden al titular (no se implementa nada sin respuesta)
 
-1. **Bolsa de viajes**: (a) mantener como está («primero que acepta»),
-   (b) convertirla en *listado de ofertas* donde los taxistas se postulan y
-   **el pasajero elige** (encaja mejor en Star Taxi App), o (c) retirarla
-   del lanzamiento. Recomendación técnica: (b).
-2. **Eurotaxi/PMR**: ¿se incluye o no? Si no, basta aviso + exclusión; si
-   sí, hay que construir el bloque completo (≥24 h, certificados Anexo II,
-   reporte) tras feature flag.
+1. **Bolsa de viajes**: ✅ RESUELTO (23-07-2026) — implementada la opción
+   (b): los taxistas se postulan con su precio y el pasajero elige
+   (`OfertaViaje`, `ofertar`/`elegir_oferta`). La aceptación al vuelo quedó
+   deshabilitada para la bolsa.
+2. **Eurotaxi/PMR**: decisión provisional «no incluir» aplicada (aviso
+   visible + flag `TAXI_PMR_ACTIVADO` desactivado). Reversible cuando el
+   titular decida construir el bloque completo.
 3. **Verificación DSA**: ¿revisión manual por el titular (panel de
    aprobación) o servicio externo de KYC? La primera es gratis y suficiente
    para empezar.

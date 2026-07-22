@@ -24,6 +24,7 @@ from .cotizaciones import (
     ServicioNoDisponible,
     _geocodificar,
     _verificar_ambito,
+    calcular_precio_tenant,
     crear_cotizacion,
 )
 from .reservas import aceptar_reserva
@@ -349,9 +350,14 @@ def aceptar_solicitud(
                          "puede volver a enviarla desde su enlace")
     if solicitud.estado != "abierta":
         raise ViajeYaAsignado()
-    if solicitud.tenant_destino_id and solicitud.tenant_destino_id != tenant.id:
+    if solicitud.tenant_destino_id is None:
+        # Modelo de listado neutro: los viajes de la bolsa no se "ganan"
+        # por velocidad; el taxista oferta y EL PASAJERO elige.
+        raise ErrorBolsa("Los viajes de la bolsa ya no se aceptan al vuelo: "
+                         "envía tu oferta y el pasajero elegirá")
+    if solicitud.tenant_destino_id != tenant.id:
         raise ErrorBolsa("Esta solicitud es de otro taxista")
-    if solicitud.tenant_destino_id and _sin_respuesta(solicitud, datetime.now(timezone.utc)):
+    if _sin_respuesta(solicitud, datetime.now(timezone.utc)):
         solicitud.estado = "caducada"
         db.commit()
         raise ErrorBolsa("La solicitud caducó sin respuesta; el pasajero "
@@ -394,6 +400,123 @@ def aceptar_solicitud(
     db.commit()
     db.refresh(reserva)
     return solicitud, reserva
+
+
+def _recogida_con_tz(solicitud: SolicitudViaje) -> datetime:
+    recogida = solicitud.fecha_hora_recogida
+    if recogida.tzinfo is None:  # SQLite: hora de Madrid
+        recogida = recogida.replace(tzinfo=TZ_MADRID)
+    return recogida
+
+
+def ofertar(
+    db: Session,
+    tenant: Tenant,
+    solicitud_id,
+    rutas: RouteProvider,
+    descuento_pct: int | None = None,
+    recogida_eur=None,
+    precio_pactado=None,
+):
+    """El taxista se postula a un viaje de la bolsa con SU precio (política
+    propia o ajustes puntuales, siempre ≤ su máximo oficial). No asigna
+    nada: el pasajero elegirá entre las ofertas. Re-ofertar sustituye la
+    oferta anterior del mismo taxista."""
+    from app.models import OfertaViaje
+
+    solicitud = db.execute(
+        select(SolicitudViaje).where(SolicitudViaje.id == solicitud_id)
+    ).scalar_one_or_none()
+    if solicitud is None:
+        raise ErrorBolsa("La solicitud no existe")
+    if solicitud.tenant_destino_id:
+        raise ErrorBolsa("Esta solicitud es una reserva directa de otro taxista")
+    if solicitud.estado != "abierta":
+        raise ViajeYaAsignado()
+
+    recogida = _recogida_con_tz(solicitud)
+    try:
+        ruta = rutas.calcular(
+            Lugar(solicitud.origen_texto, solicitud.origen_lat, solicitud.origen_lng),
+            Lugar(solicitud.destino_texto, solicitud.destino_lat, solicitud.destino_lng),
+            recogida, con_peaje=False,
+        )
+    except Exception:
+        raise ServicioNoDisponible()
+    precio, _, _ = calcular_precio_tenant(
+        tenant, ruta, recogida,
+        descuento_pct=descuento_pct, recogida_eur=recogida_eur,
+        precio_pactado=precio_pactado,
+    )
+
+    oferta = db.execute(
+        select(OfertaViaje).where(OfertaViaje.solicitud_id == solicitud.id,
+                                  OfertaViaje.tenant_id == tenant.id)
+    ).scalar_one_or_none()
+    if oferta is None:
+        oferta = OfertaViaje(solicitud_id=solicitud.id, tenant_id=tenant.id)
+        db.add(oferta)
+    oferta.precio = precio
+    oferta.descuento_pct = descuento_pct
+    oferta.recogida_eur = recogida_eur
+    oferta.precio_pactado = precio_pactado
+    db.commit()
+    db.refresh(oferta)
+    return oferta
+
+
+def elegir_oferta(db: Session, solicitud, oferta_id, geocoder, rutas):
+    """EL PASAJERO elige una de las ofertas: se reproduce el precio ofertado
+    con el motor del taxista elegido y nace la reserva con justificante.
+    Bloqueo de fila contra dobles elecciones."""
+    import uuid as _uuid
+
+    from app.models import OfertaViaje
+
+    solicitud = db.execute(
+        select(SolicitudViaje).where(SolicitudViaje.id == solicitud.id)
+        .with_for_update()
+    ).scalar_one()
+    if solicitud.estado != "abierta":
+        raise ViajeYaAsignado()
+    try:
+        oferta_uuid = _uuid.UUID(str(oferta_id))
+    except ValueError:
+        raise ErrorBolsa("La oferta no existe")
+    oferta = db.get(OfertaViaje, oferta_uuid)
+    if oferta is None or oferta.solicitud_id != solicitud.id:
+        raise ErrorBolsa("La oferta no existe")
+
+    solicitud.estado = "asignada"
+    recogida = _recogida_con_tz(solicitud)
+    cotizacion = crear_cotizacion(
+        db,
+        oferta.tenant,
+        geocoder,
+        rutas,
+        solicitud.origen_texto,
+        solicitud.destino_texto,
+        recogida,
+        con_peaje=False,
+        origen_lugar=Lugar(solicitud.origen_texto, solicitud.origen_lat, solicitud.origen_lng),
+        destino_lugar=Lugar(solicitud.destino_texto, solicitud.destino_lat, solicitud.destino_lng),
+        descuento_pct=oferta.descuento_pct,
+        recogida_eur=oferta.recogida_eur,
+        precio_pactado=oferta.precio_pactado,
+    )
+    reserva = aceptar_reserva(
+        db,
+        oferta.tenant,
+        cotizacion.id,
+        solicitud.nombre,
+        solicitud.telefono,
+        solicitud.email,
+        canal="bolsa",
+    )
+    solicitud.reserva_id = reserva.id
+    db.commit()
+    db.refresh(reserva)
+    return oferta, reserva
 
 
 def rechazar_solicitud(db: Session, tenant: Tenant, solicitud_id) -> SolicitudViaje:

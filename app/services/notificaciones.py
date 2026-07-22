@@ -221,19 +221,24 @@ def _precio_con_descuento(solicitud, pct: int) -> str:
 
 
 def botones_solicitud(solicitud) -> list:
-    """Menú principal del aviso: aceptar, ajustar el precio, ver la
-    recogida en el mapa y rechazar (o abrir la bolsa)."""
+    """Menú principal del aviso. Reserva directa: aceptar/rechazar. Viaje
+    de bolsa: OFERTAR (el pasajero elegirá entre las ofertas; la
+    plataforma no asigna)."""
     sid = str(solicitud.id)
     mapa = (f"https://www.google.com/maps/search/?api=1&query="
             f"{solicitud.origen_lat},{solicitud.origen_lng}")
-    ultima = ([{"texto": "🗺 Recogida en el mapa", "url": mapa},
-               {"texto": "❌ Rechazar", "datos": f"sol:{sid}:r"}]
-              if solicitud.tenant_destino_id else
-              [{"texto": "🗺 Recogida en el mapa", "url": mapa},
-               {"texto": "🌐 Ver bolsa", "url": f"{settings.base_url}/panel/bolsa"}])
+    if solicitud.tenant_destino_id:
+        principal = {"texto": f"✅ Aceptar · {solicitud.precio_estimado} €",
+                     "datos": f"sol:{sid}:a:0"}
+        ultima = [{"texto": "🗺 Recogida en el mapa", "url": mapa},
+                  {"texto": "❌ Rechazar", "datos": f"sol:{sid}:r"}]
+    else:
+        principal = {"texto": "📨 Ofertar a mi precio habitual",
+                     "datos": f"sol:{sid}:a:0"}
+        ultima = [{"texto": "🗺 Recogida en el mapa", "url": mapa},
+                  {"texto": "🌐 Ver bolsa", "url": f"{settings.base_url}/panel/bolsa"}]
     return [
-        [{"texto": f"✅ Aceptar · {solicitud.precio_estimado} €",
-          "datos": f"sol:{sid}:a:0"}],
+        [principal],
         [{"texto": "💶 Ajustar el precio…", "datos": f"sol:{sid}:m"}],
         ultima,
     ]
@@ -241,11 +246,15 @@ def botones_solicitud(solicitud) -> list:
 
 def botones_precio(solicitud) -> list:
     """Submenú de precio: descuentos con el importe resultante ya calculado
-    y opción de escribir un precio exacto."""
+    (en la bolsa el importe final depende de la política de cada taxista,
+    así que se omite) y opción de escribir un precio exacto."""
     sid = str(solicitud.id)
+    directa = bool(solicitud.tenant_destino_id)
+
     def boton(pct):
-        return {"texto": f"−{pct} % · {_precio_con_descuento(solicitud, pct)} €",
-                "datos": f"sol:{sid}:a:{pct}"}
+        etiqueta = (f"−{pct} % · {_precio_con_descuento(solicitud, pct)} €"
+                    if directa else f"−{pct} %")
+        return {"texto": etiqueta, "datos": f"sol:{sid}:a:{pct}"}
     return [
         [boton(5), boton(10)],
         [boton(15), boton(20)],
@@ -324,6 +333,43 @@ def notificar_hoja_de_ruta_taxista(db: Session, sender, telegram, solicitud, res
             )
         except Exception:
             logger.exception("Fallo enviando la hoja de ruta por Telegram a %s", tenant.id)
+
+
+def notificar_oferta_pasajero(db: Session, sender, solicitud, oferta):
+    """Ha llegado una oferta nueva: el pasajero elige desde su enlace."""
+    if not solicitud.email:
+        return
+    enlace = f"{settings.base_url}/s/{solicitud.token_publico}"
+    try:
+        sender.enviar(Email(
+            para=solicitud.email,
+            asunto=f"Nueva oferta para tu viaje: {oferta.precio} €",
+            html=(f"<p>Hola {solicitud.nombre}: {oferta.tenant.nombre} "
+                  f"(licencia {oferta.tenant.num_licencia}) se ofrece a hacer tu "
+                  f"viaje del {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} "
+                  f"por <strong>{oferta.precio} €</strong>.</p>"
+                  f"<p>Compara las ofertas y elige taxista aquí: "
+                  f"<a href='{enlace}'>{enlace}</a></p>"),
+        ))
+    except Exception:
+        logger.exception("Fallo avisando oferta al pasajero %s", solicitud.id)
+
+
+def notificar_no_elegidos(db: Session, telegram, solicitud, oferta_elegida):
+    """Cierra el ciclo con los taxistas cuya oferta no fue la elegida."""
+    for oferta in solicitud.ofertas:
+        if oferta.id == oferta_elegida.id or not oferta.tenant.telegram_chat_id:
+            continue
+        try:
+            telegram.enviar(
+                oferta.tenant.telegram_chat_id,
+                f"ℹ️ El pasajero eligió otra oferta para el viaje del "
+                f"{solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} "
+                f"({solicitud.origen_texto} → {solicitud.destino_texto}). "
+                "¡Gracias por ofertar!",
+            )
+        except Exception:
+            logger.exception("Fallo avisando no elegido a %s", oferta.tenant_id)
 
 
 def notificar_caducidad_pasajero(db: Session, sender, solicitud):

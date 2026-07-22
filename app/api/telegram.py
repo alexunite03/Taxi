@@ -43,18 +43,68 @@ AYUDA = (
 )
 
 
+def _ofertar_desde_telegram(
+    request: Request, db: Session, telegram, tenant, chat_id: str,
+    solicitud_id, avisar, pct: int = 0, precio_pactado=None,
+) -> None:
+    """Viaje de la bolsa: el botón crea/actualiza la OFERTA del taxista.
+    El pasajero elegirá entre las ofertas (la plataforma no asigna)."""
+    from app.models import SolicitudViaje
+    from app.services.bolsa import ErrorBolsa, ViajeYaAsignado, ofertar
+    from app.services.cotizaciones import ErrorCotizacion
+    from app.services.notificaciones import notificar_oferta_pasajero
+
+    try:
+        oferta = ofertar(
+            db, tenant, solicitud_id, request.app.state.rutas,
+            descuento_pct=pct if pct > 0 else None,
+            precio_pactado=precio_pactado,
+        )
+    except ViajeYaAsignado:
+        avisar("Este viaje ya tiene taxista.")
+        return
+    except (ErrorBolsa, ErrorCotizacion) as e:
+        avisar(str(e))
+        return
+    except Exception:
+        logger.exception("Fallo ofertando a %s desde Telegram", solicitud_id)
+        avisar("No se pudo enviar la oferta. Inténtalo desde tu panel.")
+        return
+
+    solicitud = db.get(SolicitudViaje, oferta.solicitud_id)
+    notificar_oferta_pasajero(db, request.app.state.email_sender, solicitud, oferta)
+    avisar(f"📨 Oferta enviada: {oferta.precio} €")
+    try:
+        telegram.enviar(
+            chat_id,
+            f"📨 Tu oferta de {oferta.precio} € está enviada. El pasajero "
+            "elegirá entre las ofertas recibidas; te avisaré si te elige. "
+            "Puedes mejorarla volviendo a pulsar los botones del aviso.",
+        )
+    except Exception:
+        logger.exception("No se pudo responder al chat %s", chat_id)
+
+
 def _aceptar_desde_telegram(
     request: Request, db: Session, telegram, tenant, chat_id: str,
     solicitud_id, avisar, pct: int = 0, precio_pactado=None,
 ) -> None:
-    """Acepta la solicitud (botón o precio escrito) y envía la hoja de ruta
-    definitiva. `avisar` responde al botón o al chat según el origen."""
+    """Reserva directa: acepta (botón o precio escrito) y envía la hoja de
+    ruta definitiva. Los viajes de bolsa derivan a la oferta."""
+    from app.models import SolicitudViaje
     from app.services.bolsa import ErrorBolsa, ViajeYaAsignado, aceptar_solicitud
     from app.services.cotizaciones import ErrorCotizacion
     from app.services.notificaciones import (
         notificar_confirmacion,
         notificar_hoja_de_ruta_taxista,
     )
+
+    pendiente = db.get(SolicitudViaje, solicitud_id)
+    if pendiente is not None and pendiente.tenant_destino_id is None:
+        _ofertar_desde_telegram(request, db, telegram, tenant, chat_id,
+                                solicitud_id, avisar, pct=pct,
+                                precio_pactado=precio_pactado)
+        return
 
     try:
         solicitud, reserva = aceptar_solicitud(

@@ -138,29 +138,37 @@ def test_solicitud_avisa_a_taxistas_disponibles(client, db, espia):  # noqa: F81
         app.state.telegram_sender = original
 
 
-def test_aceptar_de_bolsa_con_descuento(client, db, espia):  # noqa: F811
+def test_ofertar_de_bolsa_con_descuento(client, db, espia):  # noqa: F811
     publicar_viaje(client)
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
     estimado = Decimal(str(solicitud.precio_estimado))
 
     login_panel(client)
     r = client.post(
-        f"/panel/solicitudes/{solicitud.id}/aceptar",
+        f"/panel/solicitudes/{solicitud.id}/ofertar",
         data={"descuento_pct": "20", "recogida_eur": "0"},
         follow_redirects=False,
     )
     assert r.status_code == 303
     db.expire_all()
-    reserva = db.execute(select(Reserva)).scalar_one()
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    oferta = solicitud.ofertas[0]
     # 20 % de descuento y sin recogida: claramente por debajo del estimado
-    assert Decimal(str(reserva.precio_cerrado)) < estimado
+    assert Decimal(str(oferta.precio)) < estimado
+
+    # El pasajero elige y la reserva sale exactamente al precio ofertado
+    client.post(f"/s/{solicitud.token_publico}/elegir",
+                data={"oferta_id": str(oferta.id)})
+    db.expire_all()
+    reserva = db.execute(select(Reserva)).scalar_one()
+    assert Decimal(str(reserva.precio_cerrado)) == Decimal(str(oferta.precio))
 
 
 def test_ajuste_fuera_de_limites_rechazado(client, db):
     publicar_viaje(client)
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
     login_panel(client)
-    r = client.post(f"/panel/solicitudes/{solicitud.id}/aceptar",
+    r = client.post(f"/panel/solicitudes/{solicitud.id}/ofertar",
                     data={"descuento_pct": "0", "recogida_eur": "7"})
     assert r.status_code == 422
 
@@ -191,15 +199,22 @@ def test_intermediario_flujo_completo(client, db, espia):  # noqa: F811
     assert solicitud.intermediario_id is not None
     assert solicitud.nombre == "Sr. Smith"
 
-    # El taxista la ve identificada con el hotel y la acepta
+    # El taxista la ve identificada con el hotel y envía su oferta
     login_panel(client)
     bolsa = client.get("/panel/bolsa")
-    assert "pedido\n    por Hotel Plaza Central" in bolsa.text or \
-        "Hotel Plaza Central" in bolsa.text
-    client.post(f"/panel/solicitudes/{solicitud.id}/aceptar",
+    assert "Hotel Plaza Central" in bolsa.text
+    client.post(f"/panel/solicitudes/{solicitud.id}/ofertar",
                 data={"descuento_pct": "0", "recogida_eur": "5"})
+    client.post("/panel/logout")
 
-    # El hotel ve la asignación con el enlace a la reserva
+    # El hotel elige la oferta desde el enlace de seguimiento
+    db.expire_all()
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    oferta = solicitud.ofertas[0]
+    client.post(f"/s/{solicitud.token_publico}/elegir",
+                data={"oferta_id": str(oferta.id)})
+
+    # Y ve la asignación con el enlace a la reserva en su panel
     client.post("/intermediario/login", data={
         "email": HOTEL["email"], "password": HOTEL["password"]})
     panel = client.get("/intermediario")

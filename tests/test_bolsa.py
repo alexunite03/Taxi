@@ -52,7 +52,8 @@ def test_publicar_solicitud_y_pagina_de_espera(client, db):
 
     pagina = client.get(f"/s/{token}")
     assert pagina.status_code == 200
-    assert "Buscando taxista" in pagina.text
+    assert "tú eliges" in pagina.text
+    assert "Aún no hay ofertas" in pagina.text
     assert "Precio máximo" in pagina.text
 
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
@@ -65,7 +66,9 @@ def test_antelacion_de_solicitud(client):
     assert r.status_code == 200 and "antelación" in r.text
 
 
-def test_taxista_ve_y_acepta_el_viaje(client, db, espia):
+def test_taxista_oferta_y_el_pasajero_elige(client, db, espia):
+    """Modelo de listado neutro: el taxista se postula con su precio y ES
+    EL PASAJERO quien elige, nunca la plataforma."""
     publicar_viaje(client)
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
 
@@ -73,9 +76,34 @@ def test_taxista_ve_y_acepta_el_viaje(client, db, espia):
     bolsa = client.get("/panel/bolsa")
     assert "Bolsa de viajes" in bolsa.text
     assert "Carlos Vega" in bolsa.text
+    assert "el pasajero elige" in bolsa.text
 
-    r = client.post(f"/panel/solicitudes/{solicitud.id}/aceptar", follow_redirects=False)
+    # Aceptar al vuelo ya no existe para la bolsa
+    r = client.post(f"/panel/solicitudes/{solicitud.id}/aceptar",
+                    data={"descuento_pct": "0", "recogida_eur": "5"})
+    assert r.status_code == 422 and "oferta" in r.json()["detail"]
+
+    # El taxista envía su oferta
+    r = client.post(f"/panel/solicitudes/{solicitud.id}/ofertar",
+                    data={"descuento_pct": "0", "recogida_eur": "5"},
+                    follow_redirects=False)
     assert r.status_code == 303
+    bolsa = client.get("/panel/bolsa")
+    assert "Tu oferta:" in bolsa.text
+
+    # Sin elección del pasajero no hay reserva todavía
+    db.expire_all()
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    assert solicitud.estado == "abierta" and solicitud.reserva_id is None
+
+    # El pasajero ve la oferta identificando al taxista y ELIGE
+    pagina = client.get(f"/s/{solicitud.token_publico}")
+    assert "Taxi Demo" in pagina.text and "Elegir a" in pagina.text
+    assert "Licencia 1234" in pagina.text
+    oferta = solicitud.ofertas[0]
+    r = client.post(f"/s/{solicitud.token_publico}/elegir",
+                    data={"oferta_id": str(oferta.id)}, follow_redirects=False)
+    assert r.status_code == 303 and "/r/" in r.headers["location"]
 
     db.expire_all()
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
@@ -83,17 +111,18 @@ def test_taxista_ve_y_acepta_el_viaje(client, db, espia):
     reserva = db.get(Reserva, solicitud.reserva_id)
     assert reserva.canal == "bolsa"
     assert reserva.justificante is not None
+    assert float(reserva.precio_cerrado) == float(oferta.precio)
 
-    # El pasajero llega a su reserva desde el enlace de la solicitud
+    # El enlace de la solicitud lleva a la reserva, y llega la confirmación
     seguimiento = client.get(f"/s/{solicitud.token_publico}", follow_redirects=False)
     assert seguimiento.status_code == 303
     assert f"/r/{reserva.token_publico}" in seguimiento.headers["location"]
-
-    # Y recibe el email de confirmación
     assert any("justificante" in e.asunto for e in espia.enviados)
+    # Y el pasajero fue avisado de la oferta cuando llegó
+    assert any("Nueva oferta" in e.asunto for e in espia.enviados)
 
 
-def test_doble_aceptacion_rechazada(client, db, espia):
+def test_varias_ofertas_y_eleccion_unica(client, db, espia):
     publicar_viaje(client)
     solicitud = db.execute(select(SolicitudViaje)).scalar_one()
 
@@ -104,13 +133,38 @@ def test_doble_aceptacion_rechazada(client, db, espia):
     db.add(otro)
     db.commit()
 
+    # Dos taxistas ofertan (el rival, con 10 % de descuento)
     login_panel(client)
-    client.post(f"/panel/solicitudes/{solicitud.id}/aceptar")
-
+    client.post(f"/panel/solicitudes/{solicitud.id}/ofertar",
+                data={"descuento_pct": "0", "recogida_eur": "5"})
     login_panel(client, email="rival@example.com", password="clave-rival-1")
-    r = client.post(f"/panel/solicitudes/{solicitud.id}/aceptar")
+    client.post(f"/panel/solicitudes/{solicitud.id}/ofertar",
+                data={"descuento_pct": "10", "recogida_eur": "5"})
+
+    db.expire_all()
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    assert len(solicitud.ofertas) == 2
+    pagina = client.get(f"/s/{solicitud.token_publico}")
+    assert "Taxi Demo" in pagina.text and "Taxi Rival" in pagina.text
+
+    # El pasajero elige al rival; la solicitud queda cerrada
+    rival_oferta = next(o for o in solicitud.ofertas if o.tenant.slug == "rival")
+    client.post(f"/s/{solicitud.token_publico}/elegir",
+                data={"oferta_id": str(rival_oferta.id)})
+    db.expire_all()
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    assert solicitud.estado == "asignada"
+    assert db.get(Reserva, solicitud.reserva_id).tenant.slug == "rival"
+
+    # Segunda elección o nueva oferta sobre un viaje cerrado → error
+    otra = next(o for o in solicitud.ofertas if o.tenant.slug == "demo")
+    r = client.post(f"/s/{solicitud.token_publico}/elegir",
+                    data={"oferta_id": str(otra.id)})
     assert r.status_code == 422
-    assert "Otro taxista" in r.json()["detail"]
+    login_panel(client)
+    r = client.post(f"/panel/solicitudes/{solicitud.id}/ofertar",
+                    data={"descuento_pct": "0", "recogida_eur": "5"})
+    assert r.status_code == 422
 
 
 def test_toggle_bolsa_oculta_solicitudes(client, db):
@@ -180,3 +234,47 @@ def test_favoritos(client, db):
     # Quitar (toggle)
     client.post("/favoritos/demo")
     assert "Guardar taxista en favoritos" in client.get("/t/demo").text
+
+
+def test_ofertar_desde_telegram_con_botones(client, db, espia):
+    from decimal import Decimal
+
+    from app.main import app
+    from app.models import OfertaViaje
+
+    from .test_reserva_directa import callback, responder_precio
+    from .test_social import con_telegram_espia
+    from .test_telegram_email import _vincular
+
+    original = con_telegram_espia()
+    try:
+        _vincular(client, db)
+        client.post("/panel/logout")
+        publicar_viaje(client)
+        solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+        tg = app.state.telegram_sender
+
+        # El aviso de bolsa lleva el botón de OFERTAR (no de aceptar)
+        textos = [b["texto"] for fila in tg.botones for b in fila]
+        assert any("Ofertar" in t for t in textos)
+        assert not any("Aceptar" in t for t in textos)
+
+        # Botón principal → oferta con su política; el pasajero es avisado
+        callback(client, f"sol:{solicitud.id}:a:0")
+        assert any("Oferta enviada" in t for _, t in tg.callbacks)
+        db.expire_all()
+        oferta = db.execute(select(OfertaViaje)).scalar_one()
+        assert oferta.tenant.slug == "demo"
+        assert any("Nueva oferta" in e.asunto for e in espia.enviados)
+        # Sigue abierta: la plataforma no asigna
+        assert db.execute(select(SolicitudViaje)).scalar_one().estado == "abierta"
+
+        # Mejora su oferta con precio libre → se ACTUALIZA (no se duplica)
+        callback(client, f"sol:{solicitud.id}:p", callback_id="cb-2")
+        responder_precio(client, tg.force_replies[-1], "9,90")
+        db.expire_all()
+        ofertas = db.execute(select(OfertaViaje)).scalars().all()
+        assert len(ofertas) == 1
+        assert Decimal(str(ofertas[0].precio)) == Decimal("9.90")
+    finally:
+        app.state.telegram_sender = original

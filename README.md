@@ -45,13 +45,13 @@ del servicio.
 
 - **Taxistas favoritos**: el pasajero registrado guarda taxistas (estrella en
   su página de reserva) y los tiene a un toque en /mis-reservas.
-- **Bolsa de viajes** (/viaje): el pasajero publica un trayecto con precio
-  estimado y el primer taxista disponible que lo acepte se lo lleva (bloqueo
-  de fila contra dobles asignaciones); la solicitud se convierte en reserva
-  normal con justificante y aviso al pasajero. Cada taxista activa o
-  desactiva la bolsa desde su panel. **Nota regulatoria**: esta pieza acerca
-  la plataforma a la intermediación (el resto es marca blanca por taxista);
-  revisar su encaje antes del lanzamiento comercial.
+- **Bolsa de viajes** (/viaje), modelo de listado neutro: el pasajero
+  publica el trayecto, los taxistas disponibles **se postulan con su
+  precio** (política propia, descuento o precio exacto, siempre ≤ su máximo
+  oficial) y **el pasajero elige** entre las ofertas — con nombre, licencia,
+  foto y valoraciones de cada taxista. La plataforma no asigna, no subasta y
+  no cobra por oferta; la elección crea la reserva con su justificante
+  (bloqueo de fila contra dobles elecciones) y se avisa a los no elegidos.
 - **Autocompletado y mapas**: Leaflet servido en local (sin CDN), sugerencias
   de direcciones al escribir, botón «usar mi ubicación» (geolocalización +
   geocodificación inversa) y ruta dibujada en la oferta.

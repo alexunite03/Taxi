@@ -100,6 +100,48 @@ def _geocodificar(geocoder: Geocoder, campo: str, texto: str) -> Lugar:
     return lugares[0]
 
 
+def calcular_precio_tenant(
+    tenant: Tenant,
+    ruta,
+    fecha_hora_recogida: datetime,
+    peaje: Decimal = Decimal("0"),
+    descuento_pct: int | None = None,
+    recogida_eur: Decimal | None = None,
+    precio_pactado: Decimal | None = None,
+):
+    """Precio de UN taxista para una ruta: su política (o los ajustes que
+    pase) sobre el motor oficial, con tope duro en el máximo regulado.
+    Devuelve (precio, payload auditable, resultado del motor). Lo usan la
+    cotización persistida y las ofertas de la bolsa (que no persisten
+    cotización hasta que el pasajero elige)."""
+    if descuento_pct is None:
+        descuento_pct = tenant.descuento_pct or 0
+    if recogida_eur is None:
+        recogida_eur = Decimal(str(tenant.recogida_eur))
+    resultado = precio_cerrado(
+        ruta.tramos,
+        fecha_hora_recogida,
+        peaje=peaje,
+        escenario_no2=tenant.flag_contaminacion,
+        recogida=Decimal(str(recogida_eur)),
+        descuento_pct=Decimal(str(descuento_pct)),
+    )
+
+    precio, payload = resultado.precio, resultado.payload
+    if precio_pactado is not None:
+        precio_pactado = Decimal(str(precio_pactado)).quantize(Decimal("0.01"))
+        if precio_pactado <= 0:
+            raise ErrorCotizacion("El precio pactado debe ser mayor que cero")
+        if precio_pactado > precio:
+            raise ErrorCotizacion(
+                f"El precio pactado no puede superar el máximo legal ({precio} €)"
+            )
+        payload = dict(payload, precio_maximo=str(precio),
+                       precio_pactado=str(precio_pactado))
+        precio = precio_pactado
+    return precio, payload, resultado
+
+
 def crear_cotizacion(
     db: Session,
     tenant: Tenant,
@@ -146,31 +188,11 @@ def crear_cotizacion(
         raise DecisionPeajeRequerida(ruta.peaje_estimado)
 
     peaje = ruta.peaje_estimado if (con_peaje and ruta.peaje_estimado) else Decimal("0")
-    if descuento_pct is None:
-        descuento_pct = tenant.descuento_pct or 0
-    if recogida_eur is None:
-        recogida_eur = Decimal(str(tenant.recogida_eur))
-    resultado = precio_cerrado(
-        ruta.tramos,
-        fecha_hora_recogida,
-        peaje=peaje,
-        escenario_no2=tenant.flag_contaminacion,
-        recogida=Decimal(str(recogida_eur)),
-        descuento_pct=Decimal(str(descuento_pct)),
+    precio, payload, resultado = calcular_precio_tenant(
+        tenant, ruta, fecha_hora_recogida, peaje=peaje,
+        descuento_pct=descuento_pct, recogida_eur=recogida_eur,
+        precio_pactado=precio_pactado,
     )
-
-    precio, payload = resultado.precio, resultado.payload
-    if precio_pactado is not None:
-        precio_pactado = Decimal(str(precio_pactado)).quantize(Decimal("0.01"))
-        if precio_pactado <= 0:
-            raise ErrorCotizacion("El precio pactado debe ser mayor que cero")
-        if precio_pactado > precio:
-            raise ErrorCotizacion(
-                f"El precio pactado no puede superar el máximo legal ({precio} €)"
-            )
-        payload = dict(payload, precio_maximo=str(precio),
-                       precio_pactado=str(precio_pactado))
-        precio = precio_pactado
 
     cotizacion = Cotizacion(
         tenant_id=tenant.id,

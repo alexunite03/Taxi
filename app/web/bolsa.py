@@ -108,9 +108,56 @@ def ver_solicitud(request: Request, token: str, db: Session = Depends(get_db)):
     if solicitud.estado == "asignada" and solicitud.reserva is not None:
         return RedirectResponse(f"/r/{solicitud.reserva.token_publico}", status_code=303)
     solicitud = caducar_si_procede(db, solicitud)
+    ofertas = []
+    if solicitud.estado == "abierta" and solicitud.tenant_destino_id is None:
+        from app.web.perfiles import resumen_valoraciones
+
+        for o in solicitud.ofertas:
+            media, total = resumen_valoraciones(db, o.tenant_id)
+            ofertas.append({"oferta": o, "media": media, "total": total})
     return templates.TemplateResponse(
-        request, "s_solicitud.html", {"solicitud": solicitud}
+        request, "s_solicitud.html", {"solicitud": solicitud, "ofertas": ofertas}
     )
+
+
+@router.post("/s/{token}/elegir")
+def elegir_taxista(
+    request: Request,
+    token: str,
+    background: BackgroundTasks,
+    oferta_id: str = Form(...),
+    db: Session = Depends(get_db),
+    provs=Depends(proveedores),
+    sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
+):
+    """EL PASAJERO elige la oferta ganadora (modelo de listado neutro)."""
+    from app.services.bolsa import elegir_oferta
+    from app.services.cotizaciones import ErrorCotizacion
+    from app.services.notificaciones import (
+        notificar_confirmacion,
+        notificar_hoja_de_ruta_taxista,
+        notificar_no_elegidos,
+    )
+    from app.services.reservas import ErrorReserva
+
+    limitar_por_ip(request)
+    solicitud = solicitud_por_token(db, token)
+    if solicitud is None:
+        return HTMLResponse("<h1>Solicitud no encontrada</h1>", status_code=404)
+    geocoder, rutas = provs
+    try:
+        oferta, reserva = elegir_oferta(db, solicitud, oferta_id, geocoder, rutas)
+    except (ErrorBolsa, ErrorCotizacion, ErrorReserva) as e:
+        return templates.TemplateResponse(
+            request, "s_solicitud.html",
+            {"solicitud": solicitud, "ofertas": [], "error": str(e)},
+            status_code=422,
+        )
+    notificar_confirmacion(db, sender, reserva)
+    notificar_hoja_de_ruta_taxista(db, sender, telegram, solicitud, reserva)
+    notificar_no_elegidos(db, telegram, solicitud, oferta)
+    return RedirectResponse(f"/r/{reserva.token_publico}", status_code=303)
 
 
 @router.post("/s/{token}/a-la-bolsa")

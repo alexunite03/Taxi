@@ -237,6 +237,17 @@ def bolsa_pagina(
     solicitudes = solicitudes_abiertas(db) if tenant.disponible_bolsa else []
     if solicitudes and lat is not None and lng is not None:
         solicitudes = con_distancia(solicitudes, lat, lng)
+    # Marca los viajes a los que este taxista ya ha ofertado
+    from app.models import OfertaViaje
+
+    mias = {
+        o.solicitud_id: o
+        for o in db.execute(
+            select(OfertaViaje).where(OfertaViaje.tenant_id == tenant.id)
+        ).scalars()
+    }
+    for s in solicitudes:
+        s.mi_oferta = mias.get(s.id)
     return templates.TemplateResponse(
         request,
         "panel_bolsa.html",
@@ -439,6 +450,48 @@ def aceptar_viaje(
         raise HTTPException(422, str(e))
     notificar_confirmacion(db, sender, reserva)
     notificar_hoja_de_ruta_taxista(db, sender, telegram, solicitud, reserva)
+    return RedirectResponse("/panel/bolsa", status_code=303)
+
+
+@router.post("/solicitudes/{solicitud_id}/ofertar")
+def ofertar_viaje(
+    solicitud_id: uuid.UUID,
+    descuento_pct: int = Form(0),
+    recogida_eur: float = Form(5.0),
+    precio_final: str = Form(""),
+    tenant: Tenant = Depends(tenant_sesion),
+    db: Session = Depends(get_db),
+    provs=Depends(proveedores),
+    sender=Depends(email_sender),
+):
+    """Bolsa (modelo neutro): el taxista se postula con su precio y el
+    pasajero elige entre las ofertas."""
+    from app.services.bolsa import ofertar
+    from app.services.notificaciones import notificar_oferta_pasajero
+
+    if not (0 <= descuento_pct <= 30 and 0 <= recogida_eur <= 5):
+        raise HTTPException(422, "Ajuste de precio fuera de los límites (0–30 %, 0–5 €)")
+    precio_pactado = None
+    if precio_final.strip():
+        from decimal import Decimal, InvalidOperation
+
+        try:
+            precio_pactado = Decimal(precio_final.replace("€", "").replace(",", ".").strip())
+        except InvalidOperation:
+            raise HTTPException(422, "El precio exacto no es un importe válido")
+    _, rutas = provs
+    try:
+        oferta = ofertar(
+            db, tenant, solicitud_id, rutas,
+            descuento_pct=descuento_pct, recogida_eur=recogida_eur,
+            precio_pactado=precio_pactado,
+        )
+    except (ErrorBolsa, ErrorCotizacion) as e:
+        raise HTTPException(422, str(e))
+    from app.models import SolicitudViaje
+
+    solicitud = db.get(SolicitudViaje, oferta.solicitud_id)
+    notificar_oferta_pasajero(db, sender, solicitud, oferta)
     return RedirectResponse("/panel/bolsa", status_code=303)
 
 

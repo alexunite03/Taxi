@@ -60,8 +60,9 @@ máximo; confírmalo o mejóralo con un descuento.</p>
 {% if not tenant.disponible_bolsa %}
 <p class="aviso">Tienes la bolsa desactivada: no ves las solicitudes abiertas.</p>
 {% else %}
-<p class="sub">Viajes publicados por pasajeros que buscan taxista. El primero
-que acepta se lo lleva.</p>
+<p class="sub">Viajes publicados por pasajeros que buscan taxista. Envía tu
+oferta con tu precio: <strong>el pasajero elige</strong> entre las ofertas
+recibidas.</p>
 
 <p>
   <button type="button" id="cerca" class="secundario">📍 Ordenar por cercanía a mi posición</button>
@@ -80,9 +81,12 @@ que acepta se lo lleva.</p>
     Estimado: <strong>{{ s.precio_estimado }} €</strong> · {{ s.nombre }}
     {% if s.intermediario %}· <span class="badge" style="padding:.15rem .5rem">pedido
     por {{ s.intermediario.nombre }}</span>{% endif %}
+    {% if s.mi_oferta %}· <span class="badge-verde" style="padding:.15rem .5rem">
+    📨 Tu oferta: {{ s.mi_oferta.precio }} €</span>{% endif %}
     <details style="margin-top:.5rem">
-      <summary style="cursor:pointer;font-weight:700">Aceptar viaje…</summary>
-      <form method="post" action="/panel/solicitudes/{{ s.id }}/aceptar" class="fila" style="margin-top:.5rem">
+      <summary style="cursor:pointer;font-weight:700">
+        {{ 'Cambiar mi oferta…' if s.mi_oferta else 'Enviar mi oferta…' }}</summary>
+      <form method="post" action="/panel/solicitudes/{{ s.id }}/ofertar" class="fila" style="margin-top:.5rem">
         <div class="campo" style="margin:.25rem 0">
           <label for="desc-{{ s.id }}">Descuento</label>
           <select id="desc-{{ s.id }}" name="descuento_pct">
@@ -102,7 +106,8 @@ que acepta se lo lleva.</p>
           <input type="number" id="pf-{{ s.id }}" name="precio_final" min="0.05"
                  step="0.05" placeholder="{{ s.precio_estimado }}">
         </div>
-        <button type="submit" class="principal" style="width:auto">Confirmar y aceptar</button>
+        <button type="submit" class="principal" style="width:auto">
+          {{ 'Actualizar oferta' if s.mi_oferta else 'Enviar oferta' }}</button>
       </form>
     </details>
   </li>
