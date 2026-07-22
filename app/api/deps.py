@@ -13,7 +13,8 @@ from app.routing import Geocoder, RouteProvider
 
 def tenant_por_slug(slug: str, db: Session = Depends(get_db)) -> Tenant:
     tenant = db.execute(select(Tenant).where(Tenant.slug == slug)).scalar_one_or_none()
-    if tenant is None or tenant.estado_suscripcion != "activa":
+    if (tenant is None or tenant.estado_suscripcion != "activa"
+            or tenant.verificado is False):  # DSA: sin verificar no se lista
         raise HTTPException(404, "Este enlace de reserva no está disponible")
     return tenant
 

@@ -37,8 +37,12 @@ def cron(
     if not settings.cron_token or token != settings.cron_token:
         raise HTTPException(404, "No encontrado")
 
+    from app.services.rgpd import anonimizar_datos_antiguos
+
     recordatorios = enviar_recordatorios(db, sender, push)
     caducadas = caducar_solicitudes_directas(db)
     for solicitud in caducadas:
         notificar_caducidad_pasajero(db, sender, solicitud)
-    return {"recordatorios": recordatorios, "solicitudes_caducadas": len(caducadas)}
+    rgpd = anonimizar_datos_antiguos(db)
+    return {"recordatorios": recordatorios,
+            "solicitudes_caducadas": len(caducadas), **rgpd}

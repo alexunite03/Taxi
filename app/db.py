@@ -54,6 +54,7 @@ _COLUMNAS_NUEVAS = [
     ("solicitudes_viaje", "tenant_destino_id", "UUID"),
     ("solicitudes_viaje", "cotizacion_id", "UUID"),
     ("justificantes", "html", "TEXT"),
+    ("tenants", "verificado", "BOOLEAN"),
 ]
 
 

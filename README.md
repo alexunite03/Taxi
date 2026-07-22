@@ -94,6 +94,24 @@ del servicio.
   bolsa identificadas con el establecimiento y siguen el estado con enlace
   al justificante.
 
+- **Modelo de listado neutro (Star Taxi App)**: el pasajero elige taxista y
+  contrata con él (así se indica en la oferta y en el pie); la plataforma
+  solo calcula el máximo oficial. El listado ordena por antigüedad de alta
+  (invariante con test). Términos en `/terminos`.
+- **Cumplimiento**: tabla tarifaria externalizada a
+  `app/pricing/datos/tarifas-2026.json` (`TAXI_TARIFAS_FICHERO` para
+  cambiarla sin tocar código) con **zonas excluidas** — los trayectos con
+  origen/destino en el aeropuerto (tarifa fija T3/T4) se rechazan con
+  mensaje claro; **verificación DSA art. 30**: el taxista nuevo queda
+  «pendiente» (no listado) hasta que el titular lo aprueba
+  (`/api/admin/pendientes` y `/api/admin/verificar`, con
+  `TAXI_ADMIN_TOKEN`); **quejas** (`/quejas`, también canal de notificación
+  y retirada) y **exportación art. 47 ORT** por rango de fechas
+  (`/api/admin/export/art47.csv?conjunto=servicios|demandas|quejas`);
+  **retención RGPD**: anonimizado automático vía cron pasados
+  `TAXI_RETENCION_MESES` (12) meses; aviso PMR (flag `TAXI_PMR_ACTIVADO`,
+  pendiente de decisión del titular).
+
 ## Arranque rápido
 
 ```bash

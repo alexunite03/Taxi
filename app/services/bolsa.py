@@ -23,6 +23,7 @@ from .cotizaciones import (
     ErrorCotizacion,
     ServicioNoDisponible,
     _geocodificar,
+    _verificar_ambito,
     crear_cotizacion,
 )
 from .reservas import aceptar_reserva
@@ -76,6 +77,7 @@ def crear_solicitud(
         try:
             origen = origen_lugar or _geocodificar(geocoder, "origen", origen_texto)
             destino = destino_lugar or _geocodificar(geocoder, "destino", destino_texto)
+            _verificar_ambito(origen, destino)
             ruta = rutas.calcular(origen, destino, fecha_hora_recogida, con_peaje=False)
         except ErrorCotizacion:
             raise

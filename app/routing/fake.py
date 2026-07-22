@@ -15,9 +15,10 @@ from app.pricing import Tramo
 
 from .base import Lugar, RutaCalculada
 
-# Caja aproximada de Madrid capital
+# Caja aproximada de Madrid capital, recortada para no pisar la zona
+# excluida del aeropuerto (los tests de exclusión usan coordenadas fijas)
 _LAT = (40.35, 40.52)
-_LNG = (-3.80, -3.57)
+_LNG = (-3.80, -3.64)
 
 FACTOR_RED_VIARIA = Decimal("1.35")
 VELOCIDAD_MEDIA_KMH = Decimal("22")

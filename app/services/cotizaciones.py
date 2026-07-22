@@ -47,6 +47,30 @@ class ServicioNoDisponible(ErrorCotizacion):
         )
 
 
+class ServicioExcluido(ErrorCotizacion):
+    """El precio cerrado no aplica (tarifa fija de aeropuerto, etc.)."""
+
+    def __init__(self, zona: str):
+        self.zona = zona
+        super().__init__(
+            f"Este trayecto pasa por {zona} y tiene tarifa fija oficial: "
+            "el precio cerrado no aplica. Puedes contactar directamente "
+            "con el taxista para reservarlo."
+        )
+
+
+def _verificar_ambito(origen: Lugar, destino: Lugar) -> None:
+    """Servicios excluidos del precio cerrado (solo T1/T2, art. 39 ORT):
+    ni origen ni destino pueden caer en una zona de tarifa fija."""
+    from app.pricing.tarifas import zona_excluida
+
+    zona = zona_excluida(origen.lat, origen.lng) or zona_excluida(
+        destino.lat, destino.lng
+    )
+    if zona:
+        raise ServicioExcluido(zona)
+
+
 class DecisionPeajeRequerida(ErrorCotizacion):
     """La ruta más rápida incluye peaje y el pasajero aún no ha decidido."""
 
@@ -107,6 +131,7 @@ def crear_cotizacion(
     try:
         origen = origen_lugar or _geocodificar(geocoder, "origen", origen_texto)
         destino = destino_lugar or _geocodificar(geocoder, "destino", destino_texto)
+        _verificar_ambito(origen, destino)
         ruta = rutas.calcular(
             origen, destino, fecha_hora_recogida, con_peaje=bool(con_peaje)
         )

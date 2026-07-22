@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     # paso mantiene despierta la instancia en planes gratuitos.
     cron_token: str = ""
 
+    # Token del titular para verificación DSA y exportación art. 47
+    admin_token: str = ""
+
+    # RGPD: meses tras la recogida a partir de los cuales se anonimizan los
+    # datos personales de solicitudes y clientes sin actividad
+    retencion_meses: int = 12
+
+    # Eurotaxi / PMR (art. 38 bis ORT): pendiente de decisión del titular.
+    # Con False, la web muestra el aviso de que no se ofrece servicio
+    # adaptado; con True habrá que construir el bloque completo.
+    pmr_activado: bool = False
+
     # Email transaccional (plan §5): console (desarrollo) | resend | smtp
     email_provider: str = "console"
     resend_api_key: str = ""

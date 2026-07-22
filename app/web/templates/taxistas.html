@@ -4,6 +4,10 @@
 <h1>Encuentra tu taxista</h1>
 <p class="sub">Todos son titulares de licencia del A.P.C. de Madrid y trabajan
 con precio cerrado oficial.</p>
+{% if not pmr_activado %}
+<p class="ayuda">ℹ Por ahora el listado no incluye eurotaxis ni reserva de
+vehículo adaptado (PMR).</p>
+{% endif %}
 
 <form method="get" action="/taxistas" class="buscador">
   <label for="q" class="visualmente-oculto">Buscar por nombre</label>

@@ -31,15 +31,20 @@ def resumen_valoraciones(db: Session, tenant_id) -> tuple[float | None, int]:
 
 @router.get("/taxistas", response_class=HTMLResponse)
 def buscador(request: Request, q: str = "", db: Session = Depends(get_db)):
+    # Invariante del modelo neutro: el orden NO depende de valoraciones ni
+    # de ningún criterio de la plataforma; alta más antigua primero.
     consulta = (
         select(Tenant)
-        .where(Tenant.estado_suscripcion == "activa")
+        .where(Tenant.estado_suscripcion == "activa",
+               Tenant.verificado.isnot(False))  # DSA: pendientes fuera
         .order_by(Tenant.fecha_alta)
         .limit(50)
     )
     q = q.strip()
     if q:
         consulta = consulta.where(Tenant.nombre.ilike(f"%{q}%"))
+    from app.config import settings as _settings
+
     taxistas = db.execute(consulta).scalars().all()
     tarjetas = [
         {"tenant": t, "media": media, "total": total}
@@ -47,7 +52,7 @@ def buscador(request: Request, q: str = "", db: Session = Depends(get_db)):
         for media, total in [resumen_valoraciones(db, t.id)]
     ]
     return templates.TemplateResponse(
-        request, "taxistas.html", {"tarjetas": tarjetas, "q": q}
+        request, "taxistas.html", {"tarjetas": tarjetas, "pmr_activado": _settings.pmr_activado, "q": q}
     )
 
 

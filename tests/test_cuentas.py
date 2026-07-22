@@ -38,10 +38,21 @@ def test_registro_taxista_crea_tenant_y_entra_al_panel(client, db):
     assert tenant.slug == "jose-luis-gomez"
     assert tenant.nif == "12345678Z"
 
-    # Sesión iniciada: el panel responde
-    assert client.get("/panel").status_code == 200
-    # Y su página pública de reserva existe
+    # Sesión iniciada: el panel responde, con el aviso de verificación
+    panel = client.get("/panel")
+    assert panel.status_code == 200
+    assert "pendiente de" in panel.text and "verificación" in panel.text
+    # DSA art. 30: hasta que el titular verifica, NO está listado ni tiene
+    # página pública de reserva
+    assert tenant.verificado is False
+    assert client.get(f"/t/{tenant.slug}").status_code == 404
+    assert tenant.nombre not in client.get("/taxistas").text
+
+    # El titular lo verifica → publicado
+    tenant.verificado = True
+    db.commit()
     assert client.get(f"/t/{tenant.slug}").status_code == 200
+    assert tenant.nombre in client.get("/taxistas").text
 
 
 def test_registro_taxista_slug_unico_y_email_duplicado(client, db):

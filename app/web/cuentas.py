@@ -109,6 +109,7 @@ def registro_taxista(
         matricula=matricula.strip().upper(),
         email=email,
         password_hash=hash_password(password),
+        verificado=False,  # DSA art. 30: no se lista hasta verificar
     )
     db.add(tenant)
     db.commit()

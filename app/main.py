@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from .api import cron, panel, publico, telegram
+from .api import admin, cron, panel, publico, telegram
 from .config import settings
 from .db import init_db
 from .notificaciones import crear_email_sender, crear_push_sender, crear_telegram_sender
@@ -78,6 +78,7 @@ def crear_app() -> FastAPI:
     )
     app.include_router(publico.router)
     app.include_router(cron.router)
+    app.include_router(admin.router)
     app.include_router(telegram.router)
     app.include_router(web_routes.router)
     app.include_router(web_cuentas.router)

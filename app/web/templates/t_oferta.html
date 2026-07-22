@@ -52,6 +52,9 @@
     <p class="ayuda">Este es el precio máximo. {{ tenant.nombre.split()[0] }}
     confirmará tu reserva (puede incluso mejorarte el precio) y te avisaremos
     al momento.</p>
+    <p class="ayuda">Contratas directamente con {{ tenant.nombre }}
+    (licencia {{ tenant.num_licencia }}); TaxiMad solo pone en contacto y no
+    presta el servicio de transporte.</p>
     <form method="post" action="/t/{{ tenant.slug }}/reservar" novalidate>
       <input type="hidden" name="cotizacion_id" value="{{ cot.id }}">
       <div class="campo">

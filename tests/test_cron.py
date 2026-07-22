@@ -31,7 +31,9 @@ def test_cron_requiere_token(client):
         assert client.get("/api/cron?token=malo").status_code == 404
         r = client.get("/api/cron?token=secreto-cron")
         assert r.status_code == 200
-        assert r.json() == {"recordatorios": 0, "solicitudes_caducadas": 0}
+        assert r.json() == {"recordatorios": 0, "solicitudes_caducadas": 0,
+                            "solicitudes_anonimizadas": 0,
+                            "clientes_anonimizados": 0}
     finally:
         settings.cron_token = anterior
 

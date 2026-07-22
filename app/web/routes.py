@@ -81,6 +81,51 @@ def formulario(
     )
 
 
+@router.get("/terminos", response_class=HTMLResponse)
+def terminos(request: Request):
+    return templates.TemplateResponse(request, "terminos.html", {})
+
+
+@router.get("/quejas", response_class=HTMLResponse)
+def quejas_form(request: Request):
+    return templates.TemplateResponse(
+        request, "quejas.html", {"enviada": False, "error": None}
+    )
+
+
+@router.post("/quejas", response_class=HTMLResponse)
+def quejas_enviar(
+    request: Request,
+    nombre: str = Form(...),
+    texto: str = Form(...),
+    email: str | None = Form(None),
+    referencia: str | None = Form(None),
+    website: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Quejas y reclamaciones (ORT art. 47) y notificaciones DSA."""
+    from app.models import Queja
+
+    limitar_por_ip(request)
+    comprobar_honeypot(website)
+    if len(texto.strip()) < 10:
+        return templates.TemplateResponse(
+            request, "quejas.html",
+            {"enviada": False, "error": "Cuéntanos qué ha pasado con un poco más de detalle."},
+            status_code=422,
+        )
+    db.add(Queja(
+        nombre=nombre.strip()[:120],
+        email=(email or "").strip().lower()[:120] or None,
+        texto=texto.strip()[:4000],
+        referencia=(referencia or "").strip()[:64] or None,
+    ))
+    db.commit()
+    return templates.TemplateResponse(
+        request, "quejas.html", {"enviada": True, "error": None}
+    )
+
+
 @router.get("/aviso-legal", response_class=HTMLResponse)
 def aviso_legal(request: Request):
     return templates.TemplateResponse(

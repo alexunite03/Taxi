@@ -81,6 +81,9 @@ class Tenant(Base):
     radio_km: Mapped[float | None] = mapped_column(nullable=True)
 
     estado_suscripcion: Mapped[str] = mapped_column(String(20), default="activa")
+    # DSA art. 30: None = alta anterior al KYC (se mantiene listado),
+    # False = pendiente de verificar (NO listado), True = verificado
+    verificado: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     fecha_alta: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
@@ -355,3 +358,19 @@ class Intermediario(Base):
     direccion_lat: Mapped[float | None] = mapped_column(nullable=True)
     direccion_lng: Mapped[float | None] = mapped_column(nullable=True)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Queja(Base):
+    """Quejas y reclamaciones (ORT art. 47: el Ayuntamiento puede pedirlas).
+    También sirve de mecanismo de notificación/retirada del DSA."""
+
+    __tablename__ = "quejas"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    nombre: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    texto: Mapped[str] = mapped_column(Text)
+    referencia: Mapped[str | None] = mapped_column(String(64), nullable=True)  # token de reserva/solicitud
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenants.id"), nullable=True)
+    estado: Mapped[str] = mapped_column(String(15), default="nueva")  # nueva | atendida
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)

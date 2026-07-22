@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block titulo %}Quejas y reclamaciones{% endblock %}
+{% block contenido %}
+<h1>Quejas y reclamaciones</h1>
+
+{% if enviada %}
+<p class="badge-verde" role="status">✅ Recibida. La revisaremos y, si dejas
+tu email, te responderemos. Gracias por avisarnos.</p>
+{% else %}
+<p class="sub">Cuéntanos qué ha ido mal con una reserva, con un taxista del
+listado o con la propia web. Este canal sirve también para notificar
+contenido o perfiles que creas que no deberían estar publicados.</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post" action="/quejas" novalidate>
+  <div class="campo">
+    <label for="nombre">Tu nombre</label>
+    <input type="text" id="nombre" name="nombre" required minlength="2">
+  </div>
+  <div class="campo">
+    <label for="email">Email <span class="ayuda-inline">(opcional, para responderte)</span></label>
+    <input type="email" id="email" name="email">
+  </div>
+  <div class="campo">
+    <label for="referencia">Referencia de la reserva
+      <span class="ayuda-inline">(opcional: el código de tu enlace /r/… o /s/…)</span></label>
+    <input type="text" id="referencia" name="referencia">
+  </div>
+  <div class="campo">
+    <label for="texto">Qué ha pasado</label>
+    <textarea id="texto" name="texto" rows="6" required minlength="10"></textarea>
+  </div>
+  <div class="visualmente-oculto" aria-hidden="true">
+    <label for="website">No rellenes este campo</label>
+    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+  </div>
+  <button type="submit" class="principal">Enviar</button>
+</form>
+{% endif %}
+{% endblock %}

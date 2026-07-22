@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block titulo %}Agenda — {{ tenant.nombre }}{% endblock %}
 {% block contenido %}
+{% if tenant.verificado is sameas false %}
+<p class="aviso" role="status">⏳ Tu cuenta está <strong>pendiente de
+verificación</strong> (identidad y licencia). Hasta que la aprobemos, tu
+perfil y tu enlace de reserva no son visibles para los pasajeros. Te
+avisaremos por email.</p>
+{% endif %}
+
 <nav class="panel-nav" aria-label="Secciones del panel">
   <a href="/panel" aria-current="page">Agenda</a>
   <a href="/panel/bolsa">Bolsa de viajes</a>

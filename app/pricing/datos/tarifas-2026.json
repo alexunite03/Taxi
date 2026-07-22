@@ -1,0 +1,19 @@
+{
+  "version": "BOCM-290-2025",
+  "fuente": "BOCM núm. 290, 5-dic-2025 (tarifas 2026)",
+  "tarifas": {
+    "T1": {"inicio": "2.55", "km": "1.40", "hora": "27.00"},
+    "T2": {"inicio": "3.20", "km": "1.60", "hora": "29.00"}
+  },
+  "recogida_max": "5.00",
+  "suplemento_navidad": "7.00",
+  "paso_redondeo": "0.05",
+  "factor_descuento_no2": "0.90",
+  "zonas_excluidas": [
+    {
+      "nombre": "Aeropuerto Adolfo Suárez Madrid-Barajas",
+      "motivo": "Tarifa fija de aeropuerto (T3/T4): el precio cerrado solo admite T1/T2",
+      "bbox": {"lat_min": 40.4415, "lat_max": 40.5285, "lng_min": -3.6325, "lng_max": -3.5340}
+    }
+  ]
+}
