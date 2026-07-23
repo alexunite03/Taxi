@@ -91,11 +91,29 @@ def _validar_antelacion(tenant: Tenant, recogida: datetime) -> None:
         )
 
 
+def _dispersion_km(a: Lugar, b: Lugar) -> float:
+    """Distancia haversine entre dos coincidencias, para distinguir la
+    ambigüedad real (misma calle en dos ciudades) de varias direcciones de
+    la misma zona."""
+    import math
+
+    r = 6371.0
+    p1, p2 = math.radians(a.lat), math.radians(b.lat)
+    dp = math.radians(b.lat - a.lat)
+    dl = math.radians(b.lng - a.lng)
+    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return r * 2 * math.asin(math.sqrt(x))
+
+
 def _geocodificar(geocoder: Geocoder, campo: str, texto: str) -> Lugar:
     lugares = geocoder.geocodificar(texto)
     if not lugares:
         raise DireccionNoEncontrada(campo, texto)
-    if len(lugares) > 1:
+    # El geocodificador ordena por relevancia: cogemos la mejor coincidencia
+    # sin molestar. Solo se pregunta si el segundo resultado está lejos del
+    # primero (p. ej. la misma calle en otra ciudad): ahí elegir mal llevaría
+    # el taxi a otro sitio. Varias direcciones de la misma zona no cuentan.
+    if len(lugares) > 1 and _dispersion_km(lugares[0], lugares[1]) > 20:
         raise DesambiguacionRequerida(campo, lugares)
     return lugares[0]
 

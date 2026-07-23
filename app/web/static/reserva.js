@@ -54,8 +54,17 @@
       if (!input || !lista) return;
 
       var temporizador = null;
+      var primera = null;   // primera sugerencia del último resultado
 
       function limpiar() { lista.innerHTML = ''; }
+
+      function elegir(op) {
+        input.value = op.texto;
+        latEl.value = op.lat;
+        lngEl.value = op.lng;
+        limpiar();
+        pintar(campo, op.lat, op.lng);
+      }
 
       function buscar() {
         var q = input.value.trim();
@@ -64,17 +73,15 @@
           .then(function (r) { return r.json(); })
           .then(function (d) {
             limpiar();
-            (d.opciones || []).forEach(function (op) {
+            var ops = d.opciones || [];
+            primera = ops[0] || null;
+            ops.forEach(function (op) {
               var li = document.createElement('li');
               li.textContent = op.texto;
               li.setAttribute('role', 'option');
               li.addEventListener('mousedown', function (ev) {
                 ev.preventDefault();
-                input.value = op.texto;
-                latEl.value = op.lat;
-                lngEl.value = op.lng;
-                limpiar();
-                pintar(campo, op.lat, op.lng);
+                elegir(op);
               });
               lista.appendChild(li);
             });
@@ -85,11 +92,32 @@
       input.addEventListener('input', function () {
         latEl.value = '';           // el texto cambió: la selección ya no vale
         lngEl.value = '';
+        primera = null;
         clearTimeout(temporizador);
         temporizador = setTimeout(buscar, 450);
       });
       input.addEventListener('blur', function () { setTimeout(limpiar, 150); });
+
+      // Guarda la primera sugerencia por si el usuario envía sin elegir:
+      // el submit la usará para no re-geocodificar en el servidor.
+      input._usarPrimeraSiHaceFalta = function () {
+        // `primera` se resetea con cada tecla y solo se rellena tras buscar
+        // el texto actual, así que corresponde a lo escrito.
+        if (!latEl.value && primera) elegir(primera);
+      };
     });
+
+    // Al enviar sin haber pinchado una sugerencia, adopta la primera
+    // coincidencia ya cargada (coordenadas exactas, sin desambiguación).
+    var formulario = document.querySelector('form[action$="/cotizar"]');
+    if (formulario) {
+      formulario.addEventListener('submit', function () {
+        ['origen', 'destino'].forEach(function (campo) {
+          var input = document.getElementById(campo);
+          if (input && input._usarPrimeraSiHaceFalta) input._usarPrimeraSiHaceFalta();
+        });
+      });
+    }
 
     /* «Usar mi ubicación» rellena el origen con la dirección inversa */
     var boton = document.getElementById('usar-ubicacion');
