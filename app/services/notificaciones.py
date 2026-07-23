@@ -161,7 +161,9 @@ def notificar_cancelacion(
 def hoja_de_ruta(solicitud, reserva=None) -> str:
     """Resumen del viaje para el taxista (Telegram/email). Con `reserva`,
     muestra el precio cerrado definitivo en vez del máximo."""
-    if reserva is not None:
+    if solicitud.modo == "taximetro":
+        precio = "🕐 Cobro por taxímetro a bordo (tarifa oficial que corresponda)"
+    elif reserva is not None:
         precio = f"💶 Precio cerrado: {reserva.precio_cerrado} € (IVA incluido)"
     else:
         precio = f"💶 Precio máximo: {solicitud.precio_estimado} € (IVA incluido)"
@@ -227,6 +229,13 @@ def botones_solicitud(solicitud) -> list:
     sid = str(solicitud.id)
     mapa = (f"https://www.google.com/maps/search/?api=1&query="
             f"{solicitud.origen_lat},{solicitud.origen_lng}")
+    if solicitud.modo == "taximetro":
+        # Sin precio que ajustar: la plataforma no interviene en el importe
+        return [
+            [{"texto": "✅ Aceptar (cobro por taxímetro)", "datos": f"sol:{sid}:a:0"}],
+            [{"texto": "🗺 Recogida en el mapa", "url": mapa},
+             {"texto": "❌ Rechazar", "datos": f"sol:{sid}:r"}],
+        ]
     if solicitud.tenant_destino_id:
         principal = {"texto": f"✅ Aceptar · {solicitud.precio_estimado} €",
                      "datos": f"sol:{sid}:a:0"}
@@ -308,18 +317,23 @@ def notificar_solicitud_directa(db: Session, sender, telegram, solicitud):
 
 
 def notificar_hoja_de_ruta_taxista(db: Session, sender, telegram, solicitud, reserva):
-    """Tras aceptar: el taxista recibe la hoja de ruta definitiva (precio
-    cerrado y justificante) en PDF por email y por Telegram."""
-    tenant = reserva.tenant
+    """Tras aceptar: el taxista recibe la hoja de ruta definitiva en PDF por
+    email y por Telegram. Con `reserva=None` (modo taxímetro) no hay
+    justificante y el enlace es el de la solicitud."""
+    tenant = reserva.tenant if reserva is not None else solicitud.tenant_destino
+    if tenant is None:
+        return
     hoja = hoja_de_ruta(solicitud, reserva)
-    j = reserva.justificante
+    j = reserva.justificante if reserva is not None else None
     numero = f" · justificante {j.serie}-{j.numero:06d}" if j else ""
+    enlace = (f"{settings.base_url}/r/{reserva.token_publico}" if reserva is not None
+              else f"{settings.base_url}/s/{solicitud.token_publico}")
     try:
         sender.enviar(Email(
             para=tenant.email,
             asunto=f"Hoja de ruta: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')}{numero}",
             html=(f"<p>Reserva confirmada:</p><pre>{hoja}</pre>"
-                  f"<p><a href='{settings.base_url}/r/{reserva.token_publico}'>Ver la reserva</a></p>"),
+                  f"<p><a href='{enlace}'>Ver la reserva</a></p>"),
             adjuntos=_pdf_hoja(solicitud, reserva),
         ))
     except Exception:
@@ -328,11 +342,35 @@ def notificar_hoja_de_ruta_taxista(db: Session, sender, telegram, solicitud, res
         try:
             _telegram_con_hoja(
                 telegram, tenant.telegram_chat_id,
-                f"✅ Reserva confirmada{numero}\n{settings.base_url}/r/{reserva.token_publico}",
+                f"✅ Reserva confirmada{numero}\n{enlace}",
                 solicitud, reserva=reserva,
             )
         except Exception:
             logger.exception("Fallo enviando la hoja de ruta por Telegram a %s", tenant.id)
+
+
+def notificar_confirmacion_taximetro(db: Session, sender, solicitud):
+    """Confirmación al pasajero de una reserva con taxímetro (sin precio
+    cerrado ni justificante: el importe lo marca el taxímetro a bordo)."""
+    if not solicitud.email:
+        return
+    tenant = solicitud.tenant_destino
+    enlace = f"{settings.base_url}/s/{solicitud.token_publico}"
+    try:
+        sender.enviar(Email(
+            para=solicitud.email,
+            asunto=f"Reserva confirmada: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
+            html=(f"<p>Hola {solicitud.nombre}: {tenant.nombre} (licencia "
+                  f"{tenant.num_licencia}) confirma tu recogida el "
+                  f"{solicitud.fecha_hora_recogida.strftime('%d/%m/%Y a las %H:%M')} "
+                  f"en {solicitud.origen_texto}, destino {solicitud.destino_texto}.</p>"
+                  f"<p>El importe será el que marque el <strong>taxímetro</strong> "
+                  f"(o la tarifa fija oficial si aplica, p. ej. aeropuerto) y se "
+                  f"paga a bordo.</p>"
+                  f"<p>Detalles y cancelación: <a href='{enlace}'>{enlace}</a></p>"),
+        ))
+    except Exception:
+        logger.exception("Fallo confirmando taxímetro al pasajero %s", solicitud.id)
 
 
 def notificar_oferta_pasajero(db: Session, sender, solicitud, oferta):
@@ -408,6 +446,33 @@ def notificar_cancelacion_taxista(db: Session, sender, telegram, reserva: Reserv
             para=tenant.email,
             asunto=f"Reserva cancelada: {cot.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
             html=f"<p>{texto}</p><p><a href='{settings.base_url}/panel'>Ver mi agenda</a></p>",
+        ))
+    except Exception:
+        logger.exception("Fallo avisando cancelación por email a %s", tenant.id)
+    if tenant.telegram_chat_id:
+        try:
+            telegram.enviar(tenant.telegram_chat_id, texto)
+        except Exception:
+            logger.exception("Fallo avisando cancelación por Telegram a %s", tenant.id)
+
+
+def notificar_cancelacion_solicitud_taxista(db: Session, sender, telegram, solicitud):
+    """El pasajero canceló una reserva confirmada sin precio cerrado
+    (taxímetro): el taxista destinatario se entera al momento."""
+    tenant = solicitud.tenant_destino
+    if tenant is None:
+        return
+    texto = (
+        f"❌ Reserva cancelada por el pasajero: "
+        f"{solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} · "
+        f"{solicitud.origen_texto} → {solicitud.destino_texto} · "
+        f"{solicitud.nombre} ({solicitud.telefono})"
+    )
+    try:
+        sender.enviar(Email(
+            para=tenant.email,
+            asunto=f"Reserva cancelada: {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')}",
+            html=f"<p>{texto}</p>",
         ))
     except Exception:
         logger.exception("Fallo avisando cancelación por email a %s", tenant.id)

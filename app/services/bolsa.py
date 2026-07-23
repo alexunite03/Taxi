@@ -58,6 +58,7 @@ def crear_solicitud(
     tenant_destino_id=None,
     precio_estimado=None,
     cotizacion_id=None,
+    modo: str = "precio_cerrado",
 ) -> SolicitudViaje:
     """`tenant_destino_id`: reserva directa que debe aceptar ese taxista.
     `precio_estimado`: si viene de una cotización ya calculada (precio
@@ -108,6 +109,7 @@ def crear_solicitud(
         intermediario_id=intermediario_id,
         tenant_destino_id=tenant_destino_id,
         cotizacion_id=cotizacion_id,
+        modo=modo,
     )
     db.add(solicitud)
     db.commit()
@@ -235,6 +237,9 @@ def reenviar_a_bolsa(db: Session, solicitud: SolicitudViaje) -> SolicitudViaje:
     viaje en la bolsa general con un clic."""
     if solicitud.estado not in ("caducada", "rechazada"):
         raise ErrorBolsa("Esta solicitud no se puede enviar a la bolsa")
+    if solicitud.modo == "taximetro":
+        raise ErrorBolsa("Las reservas con taxímetro no van a la bolsa: "
+                         "elige otro taxista del listado")
     return crear_solicitud(
         db, None, None,
         nombre=solicitud.nombre,
@@ -362,6 +367,15 @@ def aceptar_solicitud(
         db.commit()
         raise ErrorBolsa("La solicitud caducó sin respuesta; el pasajero "
                          "puede volver a enviarla desde su enlace")
+
+    if solicitud.modo == "taximetro":
+        # Sin precio cerrado: no hay cotización, reserva ni justificante.
+        # La plataforma no interviene en el precio: taxímetro a bordo
+        # (o la tarifa fija oficial si es aeropuerto).
+        solicitud.estado = "asignada"
+        db.commit()
+        db.refresh(solicitud)
+        return solicitud, None
 
     # Se marca ya como asignada: el commit interno de aceptar_reserva la
     # persistirá junto con la reserva y soltará el bloqueo sin ventana para

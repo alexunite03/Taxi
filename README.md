@@ -69,6 +69,14 @@ del servicio.
   el **precio máximo**; la reserva queda pendiente hasta que el taxista la
   acepta (puede aplicar un descuento) o la rechaza. El justificante se emite
   al aceptar y el pasajero sigue el estado en su enlace `/s/{token}`.
+- **Reserva con taxímetro** (misma pantalla, selector de modo): sin precio
+  cerrado — el pasajero paga a bordo lo que marque el taxímetro con la
+  tarifa oficial que corresponda. Es la vía para los trayectos de
+  **aeropuerto** (tarifa fija, donde el precio cerrado no aplica: el
+  formulario lo sugiere automáticamente) o para quien lo prefiera. El
+  taxista solo acepta o rechaza (panel o Telegram, sin menú de precio); no
+  hay cotización, reserva ni justificante — se confirma la propia solicitud
+  y la plataforma no interviene en el importe.
 - **Avisos al taxista**: email y Telegram (Bot API gratuito; token global
   `TAXI_TELEGRAM_BOT_TOKEN`, cada taxista vincula su chat desde el perfil)
   al recibir una reserva y cuando entra un viaje nuevo en la bolsa. Los

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block titulo %}Reserva con taxímetro — {{ tenant.nombre }}{% endblock %}
+{% block contenido %}
+<h1>Reserva con taxímetro</h1>
+<p class="sub">{{ tenant.nombre }} · Licencia {{ tenant.num_licencia }} ·
+A.P.C. de Madrid</p>
+
+<div class="tarjeta-precio">
+  <div class="meta">Precio del viaje</div>
+  <div class="importe" style="font-size:1.6rem">Según taxímetro</div>
+  <div class="meta">{{ recogida.strftime('%d/%m/%Y') }} a las
+    {{ recogida.strftime('%H:%M') }}</div>
+</div>
+
+<div class="linea-viaje">
+  <span class="punto" aria-hidden="true"></span>
+  <span>{{ origen.texto }}</span>
+  <span class="punto cuadrado" aria-hidden="true"></span>
+  <span>{{ destino.texto }}</span>
+</div>
+
+<p class="ayuda">Pagarás a bordo el importe que marque el taxímetro con la
+tarifa oficial que corresponda (en trayectos de aeropuerto, la tarifa fija
+oficial). La plataforma no interviene en el precio.</p>
+<p class="ayuda">Contratas directamente con {{ tenant.nombre }}
+(licencia {{ tenant.num_licencia }}); TaxiMad solo pone en contacto y no
+presta el servicio de transporte.</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<h2>Solicita tu reserva</h2>
+<form method="post" action="/t/{{ tenant.slug }}/reservar-taximetro" novalidate>
+  <input type="hidden" name="origen_texto" value="{{ origen.texto }}">
+  <input type="hidden" name="origen_lat" value="{{ origen.lat }}">
+  <input type="hidden" name="origen_lng" value="{{ origen.lng }}">
+  <input type="hidden" name="destino_texto" value="{{ destino.texto }}">
+  <input type="hidden" name="destino_lat" value="{{ destino.lat }}">
+  <input type="hidden" name="destino_lng" value="{{ destino.lng }}">
+  <input type="hidden" name="fecha_hora" value="{{ fecha_hora }}">
+  <div class="campo">
+    <label for="nombre">Tu nombre</label>
+    <input type="text" id="nombre" name="nombre" required minlength="2" autocomplete="name"
+           value="{{ usuario.nombre if usuario else '' }}">
+  </div>
+  <div class="campo">
+    <label for="telefono">Teléfono</label>
+    <input type="tel" id="telefono" name="telefono" required minlength="9" autocomplete="tel"
+           value="{{ usuario.telefono if usuario else '' }}">
+  </div>
+  <div class="campo">
+    <label for="email">Email <span class="ayuda-inline">(recomendado: te confirmamos por correo)</span></label>
+    <input type="email" id="email" name="email" autocomplete="email"
+           value="{{ usuario.email if usuario else '' }}">
+  </div>
+  <div class="visualmente-oculto" aria-hidden="true">
+    <label for="website">No rellenes este campo</label>
+    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+  </div>
+  <button type="submit" class="principal">Solicitar taxi con taxímetro</button>
+  <p style="margin-top:.6rem"><a class="secundario" style="width:100%"
+     href="/t/{{ tenant.slug }}">Modificar viaje</a></p>
+</form>
+{% endblock %}

@@ -55,6 +55,7 @@ _COLUMNAS_NUEVAS = [
     ("solicitudes_viaje", "cotizacion_id", "UUID"),
     ("justificantes", "html", "TEXT"),
     ("tenants", "verificado", "BOOLEAN"),
+    ("solicitudes_viaje", "modo", "VARCHAR(15)"),
 ]
 
 

@@ -124,6 +124,20 @@ def _aceptar_desde_telegram(
         avisar("No se pudo aceptar el viaje. Inténtalo desde tu panel.")
         return
 
+    if reserva is None:  # modo taxímetro: sin cotización ni justificante
+        from app.services.notificaciones import (
+            notificar_confirmacion_taximetro,
+            notificar_hoja_de_ruta_taxista as _hoja,
+        )
+
+        notificar_confirmacion_taximetro(db, request.app.state.email_sender, solicitud)
+        avisar("✅ Viaje aceptado (cobro por taxímetro)")
+        try:
+            _hoja(db, request.app.state.email_sender, telegram, solicitud, None)
+        except Exception:
+            logger.exception("Fallo enviando hoja taxímetro tras aceptar %s", solicitud_id)
+        return
+
     notificar_confirmacion(db, request.app.state.email_sender, reserva)
     avisar(f"✅ Viaje aceptado por {reserva.precio_cerrado} €")
     try:

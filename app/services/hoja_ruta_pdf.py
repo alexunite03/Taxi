@@ -30,7 +30,8 @@ def pdf_hoja_de_ruta(solicitud, reserva=None) -> bytes:
     pdf.cell(0, 10, "Hoja de ruta", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("helvetica", "", 10)
     pdf.set_text_color(*_GRIS)
-    estado = "RESERVA CONFIRMADA" if reserva is not None else "PENDIENTE DE ACEPTAR"
+    confirmada = reserva is not None or getattr(solicitud, "estado", "") == "asignada"
+    estado = "RESERVA CONFIRMADA" if confirmada else "PENDIENTE DE ACEPTAR"
     pdf.cell(0, 6, f"TaxiMad - {estado}", new_x="LMARGIN", new_y="NEXT")
     pdf.set_draw_color(*_ROJO)
     pdf.set_line_width(0.8)
@@ -45,7 +46,14 @@ def pdf_hoja_de_ruta(solicitud, reserva=None) -> bytes:
         _fila(pdf, "Pedido por", solicitud.intermediario.nombre)
 
     pdf.ln(4)
-    if reserva is not None:
+    taximetro = getattr(solicitud, "modo", None) == "taximetro"
+    if taximetro:
+        _fila(pdf, "Precio", "Por taxímetro a bordo (tarifa oficial que corresponda)")
+        if reserva is None and getattr(solicitud, "estado", "") == "asignada":
+            from app.config import settings
+
+            _fila(pdf, "Enlace", f"{settings.base_url}/s/{solicitud.token_publico}")
+    elif reserva is not None:
         _fila(pdf, "Precio cerrado", f"{reserva.precio_cerrado} EUR (IVA incluido)")
         j = reserva.justificante
         if j is not None:
@@ -65,9 +73,16 @@ def pdf_hoja_de_ruta(solicitud, reserva=None) -> bytes:
     pdf.ln(6)
     pdf.set_font("helvetica", "I", 8)
     pdf.set_text_color(*_GRIS)
-    pdf.multi_cell(0, 4, "Precio calculado con las tarifas oficiales del taxi de Madrid "
-                         "(precio cerrado, BOCM). El pasajero paga el menor entre este "
-                         "importe y el del taxímetro.",
-                   new_x="LMARGIN", new_y="NEXT")
+    if taximetro:
+        pdf.multi_cell(0, 4, "Servicio con taximetro: el importe lo determina el "
+                             "aparato conforme a la tarifa oficial aplicable (fija "
+                             "en trayectos de aeropuerto). La plataforma no "
+                             "interviene en el precio.",
+                       new_x="LMARGIN", new_y="NEXT")
+    else:
+        pdf.multi_cell(0, 4, "Precio calculado con las tarifas oficiales del taxi de Madrid "
+                             "(precio cerrado, BOCM). El pasajero paga el menor entre este "
+                             "importe y el del taxímetro.",
+                       new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())

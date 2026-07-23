@@ -105,6 +105,22 @@ def export_art47(
                 r.tenant.nombre, r.tenant.num_licencia,
                 f"{j.serie}-{j.numero:06d}" if j else "",
             ])
+        # Servicios con taxímetro: se confirma la solicitud, sin reserva
+        for s in db.execute(
+            select(SolicitudViaje).where(
+                SolicitudViaje.estado == "asignada",
+                SolicitudViaje.reserva_id.is_(None),
+            )
+        ).scalars():
+            if not _en_rango(s.creada_en, d, h):
+                continue
+            t = s.tenant_destino
+            w.writerow([
+                s.creada_en.isoformat(), s.fecha_hora_recogida.isoformat(),
+                s.origen_texto, s.destino_texto,
+                "taximetro", "confirmada", "web_taximetro",
+                t.nombre if t else "", t.num_licencia if t else "", "",
+            ])
     elif conjunto == "demandas":
         w.writerow(["creada", "recogida", "origen", "destino",
                     "precio_estimado_eur", "estado", "dirigida_a_taxista"])

@@ -191,12 +191,26 @@ def solicitud_a_la_bolsa(
 
 
 @router.post("/s/{token}/cancelar")
-def cancelar_solicitud(request: Request, token: str, db: Session = Depends(get_db)):
+def cancelar_solicitud(
+    request: Request,
+    token: str,
+    db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
+):
     limitar_por_ip(request)
     solicitud = solicitud_por_token(db, token)
     if solicitud is not None and solicitud.estado == "abierta":
         solicitud.estado = "cancelada"
         db.commit()
+    elif (solicitud is not None and solicitud.estado == "asignada"
+          and solicitud.reserva_id is None):
+        # Reserva con taxímetro ya confirmada: se cancela y se avisa
+        from app.services.notificaciones import notificar_cancelacion_solicitud_taxista
+
+        solicitud.estado = "cancelada"
+        db.commit()
+        notificar_cancelacion_solicitud_taxista(db, sender, telegram, solicitud)
     return RedirectResponse(f"/s/{token}", status_code=303)
 
 

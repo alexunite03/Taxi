@@ -69,12 +69,28 @@
       </fieldset>
       {% endif %}
 
+      <fieldset class="campo">
+        <legend>¿Cómo quieres el precio?</legend>
+        <label class="opcion"><input type="radio" name="modo" value="precio_cerrado"
+          {{ 'checked' if valores.modo != 'taximetro' }}>
+          💶 Precio cerrado por adelantado (máximo garantizado)</label>
+        <label class="opcion"><input type="radio" name="modo" value="taximetro"
+          {{ 'checked' if valores.modo == 'taximetro' }}>
+          🕐 Con taxímetro (pagas lo que marque a bordo)</label>
+        <p class="ayuda">Para trayectos de aeropuerto elige taxímetro: ahí
+        aplica la tarifa fija oficial y el precio cerrado no está permitido.</p>
+      </fieldset>
+      {% if sugerir_taximetro %}
+      <p class="aviso" role="alert">ℹ Este trayecto tiene tarifa fija oficial:
+      marca la opción «Con taxímetro» y vuelve a continuar.</p>
+      {% endif %}
+
       <div class="visualmente-oculto" aria-hidden="true">
         <label for="website">No rellenes este campo</label>
         <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
       </div>
 
-      <button type="submit" class="principal">Ver precio cerrado</button>
+      <button type="submit" class="principal">Continuar</button>
     </form>
 
     <p class="rgpd">

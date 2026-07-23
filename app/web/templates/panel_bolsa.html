@@ -23,8 +23,21 @@ máximo; confírmalo o mejóralo con un descuento.</p>
 <ul class="lista-reservas">
   {% for s in pendientes %}
   <li class="reserva">
-    <strong>{{ s.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong><br>
+    <strong>{{ s.fecha_hora_recogida.strftime('%d/%m/%Y %H:%M') }}</strong>
+    {% if s.modo == 'taximetro' %}<span class="badge" style="padding:.15rem .5rem">🕐 Taxímetro</span>{% endif %}<br>
     {{ s.origen_texto }} → {{ s.destino_texto }}<br>
+    {% if s.modo == 'taximetro' %}
+    Cobro por taxímetro a bordo · {{ s.nombre }} ({{ s.telefono }})
+    <div class="fila" style="margin-top:.5rem;align-items:flex-end;gap:.75rem">
+      <form method="post" action="/panel/solicitudes/{{ s.id }}/aceptar">
+        <button type="submit" class="principal" style="width:auto">✅ Aceptar</button>
+      </form>
+      <form method="post" action="/panel/solicitudes/{{ s.id }}/rechazar"
+            onsubmit="return confirm('¿Rechazar esta reserva? Avisaremos al pasajero.')">
+        <button type="submit" class="peligro" style="width:auto">❌ Rechazar</button>
+      </form>
+    </div>
+    {% else %}
     Precio máximo: <strong>{{ s.precio_estimado }} €</strong> · {{ s.nombre }}
     ({{ s.telefono }})
     <div class="fila" style="margin-top:.5rem;align-items:flex-end;gap:.75rem">
@@ -52,6 +65,7 @@ máximo; confírmalo o mejóralo con un descuento.</p>
         <button type="submit" class="peligro" style="width:auto">❌ Rechazar</button>
       </form>
     </div>
+    {% endif %}
   </li>
   {% endfor %}
 </ul>

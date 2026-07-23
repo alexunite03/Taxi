@@ -448,7 +448,12 @@ def aceptar_viaje(
         )
     except (ErrorBolsa, ErrorCotizacion, ErrorReserva) as e:
         raise HTTPException(422, str(e))
-    notificar_confirmacion(db, sender, reserva)
+    if reserva is None:  # modo taxímetro: se confirma la propia solicitud
+        from app.services.notificaciones import notificar_confirmacion_taximetro
+
+        notificar_confirmacion_taximetro(db, sender, solicitud)
+    else:
+        notificar_confirmacion(db, sender, reserva)
     notificar_hoja_de_ruta_taxista(db, sender, telegram, solicitud, reserva)
     return RedirectResponse("/panel/bolsa", status_code=303)
 

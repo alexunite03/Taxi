@@ -19,6 +19,8 @@ from app.services.cotizaciones import (
     DecisionPeajeRequerida,
     DesambiguacionRequerida,
     ErrorCotizacion,
+    ServicioExcluido,
+    _geocodificar,
     crear_cotizacion,
 )
 from app.services.bolsa import ErrorBolsa, solicitar_reserva_directa
@@ -156,6 +158,7 @@ def cotizar_web(
     destino: str = Form(...),
     fecha_hora: str = Form(...),
     con_peaje: str | None = Form(None),  # '', 'si' o 'no'
+    modo: str = Form("precio_cerrado"),
     origen_lat: str | None = Form(None),
     origen_lng: str | None = Form(None),
     destino_lat: str | None = Form(None),
@@ -167,9 +170,34 @@ def cotizar_web(
 ):
     limitar_por_ip(request)
     comprobar_honeypot(website)
-    valores = {"origen": origen, "destino": destino, "fecha_hora": fecha_hora}
+    valores = {"origen": origen, "destino": destino, "fecha_hora": fecha_hora,
+               "modo": modo}
     geocoder, rutas = provs
     decision_peaje = {"si": True, "no": False}.get(con_peaje or "")
+
+    if modo == "taximetro":
+        # Sin precio cerrado: solo se resuelven las direcciones (el
+        # aeropuerto está permitido: pagará su tarifa fija a bordo) y se
+        # pide confirmación con los datos de contacto.
+        from app.web.cuentas import usuario_sesion
+
+        try:
+            lugar_origen = (Lugar.opcional(origen, origen_lat, origen_lng)
+                            or _geocodificar(geocoder, "origen", origen))
+            lugar_destino = (Lugar.opcional(destino, destino_lat, destino_lng)
+                             or _geocodificar(geocoder, "destino", destino))
+            recogida = parsear_fecha_recogida(fecha_hora)
+        except ErrorCotizacion as e:
+            return templates.TemplateResponse(
+                request, "t_form.html",
+                {"tenant": tenant, "valores": valores, "error": str(e)},
+            )
+        return templates.TemplateResponse(
+            request, "t_taximetro.html",
+            {"tenant": tenant, "origen": lugar_origen, "destino": lugar_destino,
+             "recogida": recogida, "fecha_hora": fecha_hora, "error": None,
+             "usuario": usuario_sesion(request, db)},
+        )
 
     try:
         cot = crear_cotizacion(
@@ -198,6 +226,12 @@ def cotizar_web(
         return templates.TemplateResponse(
             request, "t_form.html",
             {"tenant": tenant, "valores": valores, "error": mensaje},
+        )
+    except ServicioExcluido as e:
+        return templates.TemplateResponse(
+            request, "t_form.html",
+            {"tenant": tenant, "valores": valores, "error": str(e),
+             "sugerir_taximetro": True},
         )
     except ErrorCotizacion as e:
         return templates.TemplateResponse(
@@ -240,6 +274,59 @@ def reservar_web(
         return templates.TemplateResponse(
             request, "t_form.html",
             {"tenant": tenant, "valores": {}, "error": str(e)},
+        )
+    background.add_task(tarea_solicitud_directa, solicitud.id, sender, telegram)
+    return RedirectResponse(f"/s/{solicitud.token_publico}", status_code=303)
+
+
+@router.post("/t/{slug}/reservar-taximetro", response_class=HTMLResponse)
+def reservar_taximetro(
+    request: Request,
+    background: BackgroundTasks,
+    origen_texto: str = Form(...),
+    origen_lat: float = Form(...),
+    origen_lng: float = Form(...),
+    destino_texto: str = Form(...),
+    destino_lat: float = Form(...),
+    destino_lng: float = Form(...),
+    fecha_hora: str = Form(...),
+    nombre: str = Form(...),
+    telefono: str = Form(...),
+    email: str | None = Form(None),
+    website: str | None = Form(None),
+    tenant: Tenant = Depends(tenant_por_slug),
+    db: Session = Depends(get_db),
+    sender=Depends(email_sender),
+    telegram=Depends(telegram_sender),
+):
+    """Reserva SIN precio cerrado: el importe lo marcará el taxímetro a
+    bordo (o la tarifa fija oficial en aeropuerto). La plataforma no
+    interviene en el precio; el taxista solo acepta o rechaza."""
+    from decimal import Decimal
+
+    from app.services.bolsa import crear_solicitud
+
+    limitar_por_ip(request)
+    comprobar_honeypot(website)
+    try:
+        solicitud = crear_solicitud(
+            db, None, None,
+            nombre=nombre.strip(),
+            telefono=telefono.strip(),
+            email=email or None,
+            origen_texto=origen_texto,
+            destino_texto=destino_texto,
+            fecha_hora_recogida=parsear_fecha_recogida(fecha_hora),
+            origen_lugar=Lugar(origen_texto, origen_lat, origen_lng),
+            destino_lugar=Lugar(destino_texto, destino_lat, destino_lng),
+            tenant_destino_id=tenant.id,
+            precio_estimado=Decimal("0"),
+            modo="taximetro",
+        )
+    except (ErrorBolsa, ErrorCotizacion) as e:
+        return templates.TemplateResponse(
+            request, "t_form.html",
+            {"tenant": tenant, "valores": {"modo": "taximetro"}, "error": str(e)},
         )
     background.add_task(tarea_solicitud_directa, solicitud.id, sender, telegram)
     return RedirectResponse(f"/s/{solicitud.token_publico}", status_code=303)

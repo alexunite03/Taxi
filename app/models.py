@@ -315,6 +315,12 @@ class SolicitudViaje(Base):
     )
 
     precio_estimado: Mapped[float] = mapped_column(Numeric(7, 2))
+    # precio_cerrado (por defecto) | taximetro: el pasajero paga lo que
+    # marque el taxímetro (única opción en trayectos de aeropuerto, donde
+    # el precio cerrado no aplica). Sin cotización, reserva ni justificante:
+    # se confirma la propia solicitud. NULL en filas antiguas = precio_cerrado.
+    modo: Mapped[str | None] = mapped_column(String(15), nullable=True,
+                                             default="precio_cerrado")
     estado: Mapped[str] = mapped_column(String(15), default="abierta")  # abierta | asignada | cancelada | rechazada | caducada
     reserva_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("reservas.id"), nullable=True
