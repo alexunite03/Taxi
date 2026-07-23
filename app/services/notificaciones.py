@@ -378,15 +378,23 @@ def notificar_oferta_pasajero(db: Session, sender, solicitud, oferta):
     if not solicitud.email:
         return
     enlace = f"{settings.base_url}/s/{solicitud.token_publico}"
+    if solicitud.modo == "taximetro":
+        asunto = "Un taxista se ofrece para tu viaje con taxímetro"
+        cuerpo = (f"<p>Hola {solicitud.nombre}: {oferta.tenant.nombre} "
+                  f"(licencia {oferta.tenant.num_licencia}) se ofrece a hacer tu "
+                  f"viaje del {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} "
+                  f"con cobro por taxímetro.</p>")
+    else:
+        asunto = f"Nueva oferta para tu viaje: {oferta.precio} €"
+        cuerpo = (f"<p>Hola {solicitud.nombre}: {oferta.tenant.nombre} "
+                  f"(licencia {oferta.tenant.num_licencia}) se ofrece a hacer tu "
+                  f"viaje del {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} "
+                  f"por <strong>{oferta.precio} €</strong>.</p>")
     try:
         sender.enviar(Email(
             para=solicitud.email,
-            asunto=f"Nueva oferta para tu viaje: {oferta.precio} €",
-            html=(f"<p>Hola {solicitud.nombre}: {oferta.tenant.nombre} "
-                  f"(licencia {oferta.tenant.num_licencia}) se ofrece a hacer tu "
-                  f"viaje del {solicitud.fecha_hora_recogida.strftime('%d/%m %H:%M')} "
-                  f"por <strong>{oferta.precio} €</strong>.</p>"
-                  f"<p>Compara las ofertas y elige taxista aquí: "
+            asunto=asunto,
+            html=(cuerpo + f"<p>Compara y elige taxista aquí: "
                   f"<a href='{enlace}'>{enlace}</a></p>"),
         ))
     except Exception:

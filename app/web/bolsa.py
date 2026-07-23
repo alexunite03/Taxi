@@ -59,6 +59,7 @@ def viaje_solicitar(
     nombre: str = Form(...),
     telefono: str = Form(...),
     email: str | None = Form(None),
+    modo: str = Form("precio_cerrado"),
     origen_lat: str | None = Form(None),
     origen_lng: str | None = Form(None),
     destino_lat: str | None = Form(None),
@@ -77,7 +78,7 @@ def viaje_solicitar(
     geocoder, rutas = provs
     valores = {
         "origen": origen, "destino": destino, "fecha_hora": fecha_hora,
-        "nombre": nombre, "telefono": telefono, "email": email,
+        "nombre": nombre, "telefono": telefono, "email": email, "modo": modo,
     }
     try:
         solicitud = crear_solicitud(
@@ -87,6 +88,7 @@ def viaje_solicitar(
             parsear_fecha_recogida(fecha_hora),
             origen_lugar=Lugar.opcional(origen, origen_lat, origen_lng),
             destino_lugar=Lugar.opcional(destino, destino_lat, destino_lng),
+            modo="taximetro" if modo == "taximetro" else "precio_cerrado",
         )
     except (ErrorCotizacion, ErrorBolsa) as e:
         return templates.TemplateResponse(
@@ -136,6 +138,7 @@ def elegir_taxista(
     from app.services.cotizaciones import ErrorCotizacion
     from app.services.notificaciones import (
         notificar_confirmacion,
+        notificar_confirmacion_taximetro,
         notificar_hoja_de_ruta_taxista,
         notificar_no_elegidos,
     )
@@ -154,9 +157,13 @@ def elegir_taxista(
             {"solicitud": solicitud, "ofertas": [], "error": str(e)},
             status_code=422,
         )
+    notificar_no_elegidos(db, telegram, solicitud, oferta)
+    if reserva is None:  # taxímetro: sin reserva ni justificante
+        notificar_confirmacion_taximetro(db, sender, solicitud)
+        notificar_hoja_de_ruta_taxista(db, sender, telegram, solicitud, None)
+        return RedirectResponse(f"/s/{solicitud.token_publico}", status_code=303)
     notificar_confirmacion(db, sender, reserva)
     notificar_hoja_de_ruta_taxista(db, sender, telegram, solicitud, reserva)
-    notificar_no_elegidos(db, telegram, solicitud, oferta)
     return RedirectResponse(f"/r/{reserva.token_publico}", status_code=303)
 
 

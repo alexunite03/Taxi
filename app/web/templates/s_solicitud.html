@@ -83,6 +83,17 @@ bolsa para que lo acepte otro taxista disponible:</p>
     <span class="ayuda-inline">({{ fila.total }})</span>{% endif %}
     · <a href="/t/{{ fila.oferta.tenant.slug }}/perfil" target="_blank"
          rel="noopener">ver perfil</a><br>
+    {% if solicitud.modo == 'taximetro' %}
+    Se ofrece · <span class="ayuda-inline">cobro por taxímetro a bordo
+    (tarifa oficial)</span>
+    <form method="post" action="/s/{{ solicitud.token_publico }}/elegir"
+          style="margin-top:.5rem">
+      <input type="hidden" name="oferta_id" value="{{ fila.oferta.id }}">
+      <button type="submit" class="principal" style="width:auto">
+        Elegir a {{ fila.oferta.tenant.nombre.split()[0] }}
+      </button>
+    </form>
+    {% else %}
     Precio ofertado: <strong>{{ fila.oferta.precio }} €</strong>
     <span class="ayuda-inline">(IVA incluido; pagarás el menor entre este
     precio y el taxímetro)</span>
@@ -93,6 +104,7 @@ bolsa para que lo acepte otro taxista disponible:</p>
         Elegir a {{ fila.oferta.tenant.nombre.split()[0] }} · {{ fila.oferta.precio }} €
       </button>
     </form>
+    {% endif %}
   </li>
   {% endfor %}
 </ul>

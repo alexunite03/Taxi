@@ -10,9 +10,9 @@
 
   <section class="panel-reserva" aria-label="Solicitud de viaje">
     <h1>Busca un taxista disponible</h1>
-    <p class="sub">Publica tu viaje con precio cerrado estimado y el primer
-    taxista disponible que lo acepte se lo queda. Te avisamos con el
-    justificante en cuanto lo tengas.</p>
+    <p class="sub">Publica tu viaje: los taxistas disponibles se ofrecen y
+    <strong>tú eliges</strong> con quién viajar. Te avisamos en cuanto
+    llegue una oferta.</p>
 
     {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 
@@ -60,6 +60,18 @@
         <input type="email" id="email" name="email" autocomplete="email"
                value="{{ valores.email or (usuario.email if usuario else '') }}">
       </div>
+
+      <fieldset class="campo">
+        <legend>¿Cómo quieres el precio?</legend>
+        <label class="opcion"><input type="radio" name="modo" value="precio_cerrado"
+          {{ 'checked' if valores.modo != 'taximetro' }}>
+          💶 Precio cerrado (los taxistas ofertan su precio, ≤ máximo oficial)</label>
+        <label class="opcion"><input type="radio" name="modo" value="taximetro"
+          {{ 'checked' if valores.modo == 'taximetro' }}>
+          🕐 Con taxímetro (pagas lo que marque a bordo)</label>
+        <p class="ayuda">Para trayectos de aeropuerto elige taxímetro: ahí
+        aplica la tarifa fija oficial y el precio cerrado no está permitido.</p>
+      </fieldset>
 
       <div class="visualmente-oculto" aria-hidden="true">
         <label for="website">No rellenes este campo</label>

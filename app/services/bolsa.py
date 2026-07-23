@@ -79,17 +79,22 @@ def crear_solicitud(
         try:
             origen = origen_lugar or _geocodificar(geocoder, "origen", origen_texto)
             destino = destino_lugar or _geocodificar(geocoder, "destino", destino_texto)
-            _verificar_ambito(origen, destino)
-            ruta = rutas.calcular(origen, destino, fecha_hora_recogida, con_peaje=False)
+            if modo == "taximetro":
+                # Sin precio cerrado: no se calcula ruta ni se excluye el
+                # aeropuerto (pagará su tarifa fija a bordo).
+                precio_estimado = Decimal("0")
+            else:
+                _verificar_ambito(origen, destino)
+                ruta = rutas.calcular(origen, destino, fecha_hora_recogida, con_peaje=False)
+                # Estimación con las tarifas oficiales (iguales para todos);
+                # el precio definitivo lo emite el taxista que acepte.
+                estimacion = precio_cerrado(ruta.tramos, fecha_hora_recogida,
+                                            peaje=Decimal("0"))
+                precio_estimado = estimacion.precio
         except ErrorCotizacion:
             raise
         except Exception:
             raise ServicioNoDisponible()
-
-        # Estimación con las tarifas oficiales (iguales para todos);
-        # el precio definitivo lo emite el taxista que acepte, con su motor.
-        estimacion = precio_cerrado(ruta.tramos, fecha_hora_recogida, peaje=Decimal("0"))
-        precio_estimado = estimacion.precio
     else:
         origen, destino = origen_lugar, destino_lugar
 
@@ -448,20 +453,26 @@ def ofertar(
     if solicitud.estado != "abierta":
         raise ViajeYaAsignado()
 
-    recogida = _recogida_con_tz(solicitud)
-    try:
-        ruta = rutas.calcular(
-            Lugar(solicitud.origen_texto, solicitud.origen_lat, solicitud.origen_lng),
-            Lugar(solicitud.destino_texto, solicitud.destino_lat, solicitud.destino_lng),
-            recogida, con_peaje=False,
+    if solicitud.modo == "taximetro":
+        # Sin precio que ofertar: la carrera se cobra por taxímetro. La
+        # oferta es solo «me ofrezco»; el pasajero elige por perfil.
+        precio = Decimal("0")
+        descuento_pct = recogida_eur = precio_pactado = None
+    else:
+        recogida = _recogida_con_tz(solicitud)
+        try:
+            ruta = rutas.calcular(
+                Lugar(solicitud.origen_texto, solicitud.origen_lat, solicitud.origen_lng),
+                Lugar(solicitud.destino_texto, solicitud.destino_lat, solicitud.destino_lng),
+                recogida, con_peaje=False,
+            )
+        except Exception:
+            raise ServicioNoDisponible()
+        precio, _, _ = calcular_precio_tenant(
+            tenant, ruta, recogida,
+            descuento_pct=descuento_pct, recogida_eur=recogida_eur,
+            precio_pactado=precio_pactado,
         )
-    except Exception:
-        raise ServicioNoDisponible()
-    precio, _, _ = calcular_precio_tenant(
-        tenant, ruta, recogida,
-        descuento_pct=descuento_pct, recogida_eur=recogida_eur,
-        precio_pactado=precio_pactado,
-    )
 
     oferta = db.execute(
         select(OfertaViaje).where(OfertaViaje.solicitud_id == solicitud.id,
@@ -500,6 +511,15 @@ def elegir_oferta(db: Session, solicitud, oferta_id, geocoder, rutas):
     oferta = db.get(OfertaViaje, oferta_uuid)
     if oferta is None or oferta.solicitud_id != solicitud.id:
         raise ErrorBolsa("La oferta no existe")
+
+    if solicitud.modo == "taximetro":
+        # Sin cotización, reserva ni justificante: el importe lo marca el
+        # taxímetro a bordo. Se dirige la solicitud al taxista elegido.
+        solicitud.estado = "asignada"
+        solicitud.tenant_destino_id = oferta.tenant_id
+        db.commit()
+        db.refresh(solicitud)
+        return oferta, None
 
     solicitud.estado = "asignada"
     recogida = _recogida_con_tz(solicitud)

@@ -109,7 +109,7 @@
 
     // Al enviar sin haber pinchado una sugerencia, adopta la primera
     // coincidencia ya cargada (coordenadas exactas, sin desambiguación).
-    var formulario = document.querySelector('form[action$="/cotizar"]');
+    var formulario = document.querySelector('form[action$="/cotizar"], form[action$="/viaje"]');
     if (formulario) {
       formulario.addEventListener('submit', function () {
         ['origen', 'destino'].forEach(function (campo) {

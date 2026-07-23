@@ -92,11 +92,21 @@ recibidas.</p>
     · <span class="badge" style="padding:.15rem .5rem">a {{ s.distancia_km }} km de ti</span>
     {% endif %}<br>
     {{ s.origen_texto }} → {{ s.destino_texto }}<br>
+    {% if s.modo == 'taximetro' %}
+    <span class="badge" style="padding:.15rem .5rem">🕐 Taxímetro</span> · {{ s.nombre }}
+    {% else %}
     Estimado: <strong>{{ s.precio_estimado }} €</strong> · {{ s.nombre }}
+    {% endif %}
     {% if s.intermediario %}· <span class="badge" style="padding:.15rem .5rem">pedido
     por {{ s.intermediario.nombre }}</span>{% endif %}
     {% if s.mi_oferta %}· <span class="badge-verde" style="padding:.15rem .5rem">
-    📨 Tu oferta: {{ s.mi_oferta.precio }} €</span>{% endif %}
+    {{ '📨 Ya te has ofrecido' if s.modo == 'taximetro' else '📨 Tu oferta: ' ~ s.mi_oferta.precio ~ ' €' }}</span>{% endif %}
+    {% if s.modo == 'taximetro' %}
+    <form method="post" action="/panel/solicitudes/{{ s.id }}/ofertar" style="margin-top:.5rem">
+      <button type="submit" class="principal" style="width:auto">
+        {{ 'Ya te has ofrecido' if s.mi_oferta else '📨 Ofrecerme (cobro por taxímetro)' }}</button>
+    </form>
+    {% else %}
     <details style="margin-top:.5rem">
       <summary style="cursor:pointer;font-weight:700">
         {{ 'Cambiar mi oferta…' if s.mi_oferta else 'Enviar mi oferta…' }}</summary>
@@ -124,6 +134,7 @@ recibidas.</p>
           {{ 'Actualizar oferta' if s.mi_oferta else 'Enviar oferta' }}</button>
       </form>
     </details>
+    {% endif %}
   </li>
   {% endfor %}
 </ul>

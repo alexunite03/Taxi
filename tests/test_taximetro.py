@@ -173,3 +173,71 @@ def test_export_art47_incluye_taximetro(client, db, espia):  # noqa: F811
         assert "taximetro" in csv and "web_taximetro" in csv
     finally:
         settings.admin_token = anterior
+
+
+def _publicar_taximetro_bolsa(client, db):
+    """Publica un viaje de taxímetro al aeropuerto en la bolsa (/viaje)."""
+    from .test_bolsa import login_viajero
+
+    login_viajero(client)
+    r = client.post("/viaje", data={
+        "origen": "Calle de Alcalá 100", "destino": "Aeropuerto T4",
+        "fecha_hora": fecha_recogida(),
+        "nombre": "Carlos Vega", "telefono": "699887766",
+        "email": "carlos@example.com", "modo": "taximetro",
+        "origen_lat": CENTRO["lat"], "origen_lng": CENTRO["lng"],
+        "destino_lat": AEROPUERTO["lat"], "destino_lng": AEROPUERTO["lng"],
+    }, follow_redirects=False)
+    assert r.status_code == 303, r.text
+    token = r.headers["location"].split("/s/")[1]
+    return db.execute(select(SolicitudViaje)).scalar_one(), token
+
+
+def test_bolsa_ofrece_selector_de_modo(client, db):
+    from .test_bolsa import login_viajero
+
+    login_viajero(client)
+    pagina = client.get("/viaje")
+    assert "Con taxímetro" in pagina.text
+    assert "tú eliges" in pagina.text  # texto del modelo de ofertas
+
+
+def test_aeropuerto_en_bolsa_con_taximetro(client, db, espia):  # noqa: F811
+    solicitud, token = _publicar_taximetro_bolsa(client, db)
+    assert solicitud.modo == "taximetro"
+    assert solicitud.tenant_destino_id is None
+    assert float(solicitud.precio_estimado) == 0
+
+    # El taxista se ofrece SIN precio (botón simple)
+    login_panel(client)
+    bolsa = client.get("/panel/bolsa")
+    assert "🕐 Taxímetro" in bolsa.text
+    assert "Ofrecerme" in bolsa.text
+    r = client.post(f"/panel/solicitudes/{solicitud.id}/ofertar",
+                    follow_redirects=False)
+    assert r.status_code == 303
+    db.expire_all()
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    oferta = solicitud.ofertas[0]
+    assert float(oferta.precio) == 0
+    client.post("/panel/logout")
+
+    # El pasajero ve «Se ofrece» sin precio y elige
+    pagina = client.get(f"/s/{token}")
+    assert "Se ofrece" in pagina.text
+    assert "Elegir a Taxi" in pagina.text
+    r = client.post(f"/s/{token}/elegir",
+                    data={"oferta_id": str(oferta.id)}, follow_redirects=False)
+    assert r.status_code == 303 and f"/s/{token}" in r.headers["location"]
+
+    db.expire_all()
+    solicitud = db.execute(select(SolicitudViaje)).scalar_one()
+    assert solicitud.estado == "asignada"
+    assert solicitud.reserva_id is None  # sin reserva ni justificante
+    assert solicitud.tenant_destino_id is not None  # dirigida al elegido
+    assert db.execute(select(Reserva)).first() is None
+
+    confirmada = client.get(f"/s/{token}")
+    assert "Reserva" in confirmada.text and "confirmada" in confirmada.text
+    assert any("taxímetro" in e.html for e in espia.enviados
+               if e.para == "carlos@example.com")
